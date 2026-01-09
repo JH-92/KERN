@@ -5,7 +5,7 @@ import {
   Calendar, Users, Save, Plus, Trash2, 
   CheckCircle, Info, ClipboardList, Clock, User, Briefcase, Layout,
   GripVertical, List, CheckSquare, Square, X, ChevronDown, RotateCcw,
-  PenTool, ListTodo, AlertCircle, Edit2, AlertTriangle, PlusCircle
+  PenTool, ListTodo, AlertCircle, Edit2, AlertTriangle
 } from 'lucide-react';
 import { db, MeetingDraft } from '../db';
 import { MeetingType, ActionStatus, Employee, Action, Decision, Note, Meeting, Topic } from '../types';
