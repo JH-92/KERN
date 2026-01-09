@@ -643,8 +643,7 @@ const NewMeetingPage: React.FC = () => {
                         <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2">
                           <PlusCircle size={16} /> Besluit vastleggen
                         </h4>
-                        {/* Invisible spacer to match Action Header height exactly */}
-                        <div className="p-2 opacity-0 pointer-events-none">
+                        <div className="p-2 bg-emerald-50 text-emerald-300 rounded-full">
                             <Plus size={20} />
                         </div>
                       </div>

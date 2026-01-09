@@ -75,7 +75,7 @@ export const Sidebar: React.FC = () => {
         className={`fixed inset-y-0 left-0 w-80 bg-white border-r border-slate-100 transform transition-all duration-500 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           ${isObscured ? 'lg:filter lg:blur-sm lg:opacity-40 lg:pointer-events-none' : 'lg:filter-none lg:opacity-100'}
-          z-50 lg:z-30
+          z-30
         `}
       >
         <div className="p-10">
@@ -106,7 +106,7 @@ export const Sidebar: React.FC = () => {
       {/* Mobile Backdrop for Sidebar */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-20 lg:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}

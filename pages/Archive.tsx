@@ -102,7 +102,7 @@ const ArchivePage: React.FC = () => {
 
     const opt = {
       margin: 10,
-      filename: `KERN_Verslag_${selectedMeeting?.date}_${selectedMeeting?.type}.pdf`,
+      filename: `KERN_Verslag_${selectedMeeting?.date}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
