@@ -641,7 +641,7 @@ const NewMeetingPage: React.FC = () => {
                     <div className="space-y-8">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                         <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2">
-                          <PlusCircle size={16} /> Besluit vastleggen
+                          <Plus size={16} /> Besluit vastleggen
                         </h4>
                         <div className="p-2 bg-emerald-50 text-emerald-300 rounded-full">
                             <Plus size={20} />

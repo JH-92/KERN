@@ -3,8 +3,9 @@ import { Employee, Meeting, Action, ActionStatus, Note, Topic, MeetingType } fro
 
 // --- WORKSPACE MANAGEMENT (TEAMS COMPATIBLE) ---
 // Uses URL query param ?ws=... to isolate data.
-// Example: meetingmaster.com/?ws=marketing
+// Safe check for window existence.
 const getWorkspaceId = (): string => {
+  if (typeof window === 'undefined') return 'default';
   const params = new URLSearchParams(window.location.search);
   const ws = params.get('ws');
   return ws ? ws.toLowerCase().replace(/[^a-z0-9-_]/g, '') : 'default';
@@ -51,22 +52,38 @@ export interface MeetingDraft {
   decisionDrafts: Record<string, string>;
 }
 
+// Helper for safe storage access
+const storage = {
+  get: (key: string) => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(key);
+  },
+  set: (key: string, value: string) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(key, value);
+  },
+  remove: (key: string) => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(key);
+  }
+};
+
 export const db = {
   // --- METADATA ---
   getCurrentWorkspace: () => WORKSPACE_ID,
 
   // --- READS ---
   getEmployees: (): Employee[] => {
-    const data = localStorage.getItem(getKey(STORAGE_KEYS.EMPLOYEES));
+    const data = storage.get(getKey(STORAGE_KEYS.EMPLOYEES));
     if (data === null) {
-      localStorage.setItem(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(DEFAULT_EMPLOYEES));
+      storage.set(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(DEFAULT_EMPLOYEES));
       return DEFAULT_EMPLOYEES;
     }
     return JSON.parse(data);
   },
 
   getMeetings: (): Meeting[] => {
-    const data = localStorage.getItem(getKey(STORAGE_KEYS.MEETINGS));
+    const data = storage.get(getKey(STORAGE_KEYS.MEETINGS));
     return data ? JSON.parse(data) : [];
   },
 
@@ -76,7 +93,7 @@ export const db = {
   },
 
   getDraft: (): MeetingDraft | null => {
-    const data = localStorage.getItem(getKey(STORAGE_KEYS.DRAFT));
+    const data = storage.get(getKey(STORAGE_KEYS.DRAFT));
     return data ? JSON.parse(data) : null;
   },
 
@@ -90,7 +107,7 @@ export const db = {
       role: data.role || 'Algemeen',
       avatarColor: data.avatarColor || getRandomColor()
     };
-    localStorage.setItem(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify([...employees, newEmployee]));
+    storage.set(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify([...employees, newEmployee]));
   },
 
   addEmployees: (names: string[]): void => {
@@ -102,13 +119,13 @@ export const db = {
       role: 'Nieuw',
       avatarColor: getRandomColor()
     })).filter(e => e.name.length > 0);
-    localStorage.setItem(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify([...employees, ...newEmployees]));
+    storage.set(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify([...employees, ...newEmployees]));
   },
 
   updateEmployee: (id: string, data: Partial<Employee>): void => {
     const employees = db.getEmployees();
     const updated = employees.map(e => e.id === id ? { ...e, ...data } : e);
-    localStorage.setItem(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(updated));
+    storage.set(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(updated));
   },
 
   removeEmployee: (id: string): Employee[] => {
@@ -116,7 +133,7 @@ export const db = {
     const empToRemove = employees.find(e => e.id === id);
     const updated = employees.filter(e => e.id !== id);
     
-    localStorage.setItem(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(updated));
+    storage.set(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(updated));
 
     if (empToRemove) {
       const draft = db.getDraft();
@@ -130,7 +147,7 @@ export const db = {
 
   saveMeeting: (meeting: Meeting): void => {
     const meetings = db.getMeetings();
-    localStorage.setItem(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify([...meetings, meeting]));
+    storage.set(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify([...meetings, meeting]));
   },
 
   updateMeetingNotes: (meetingId: string, updatedNotes: Note[]): void => {
@@ -138,7 +155,7 @@ export const db = {
     const updatedMeetings = meetings.map(m => 
       m.id === meetingId ? { ...m, notes: updatedNotes } : m
     );
-    localStorage.setItem(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
+    storage.set(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
   },
 
   removeAction: (meetingId: string, actionId: string): void => {
@@ -149,7 +166,7 @@ export const db = {
       }
       return m;
     });
-    localStorage.setItem(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
+    storage.set(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
   },
 
   removeDecision: (meetingId: string, decisionId: string): void => {
@@ -160,7 +177,7 @@ export const db = {
       }
       return m;
     });
-    localStorage.setItem(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
+    storage.set(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
   },
 
   updateActionStatus: (meetingId: string, actionId: string, newStatus: ActionStatus): void => {
@@ -179,7 +196,7 @@ export const db = {
       }
       return m;
     });
-    localStorage.setItem(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
+    storage.set(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
   },
 
   toggleActionStatus: (actionId: string): ActionStatus => {
@@ -202,16 +219,16 @@ export const db = {
       })
     }));
 
-    localStorage.setItem(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
+    storage.set(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(updatedMeetings));
     return newStatus;
   },
 
   saveDraft: (draft: MeetingDraft): void => {
-    localStorage.setItem(getKey(STORAGE_KEYS.DRAFT), JSON.stringify(draft));
+    storage.set(getKey(STORAGE_KEYS.DRAFT), JSON.stringify(draft));
   },
 
   clearDraft: (): void => {
-    localStorage.removeItem(getKey(STORAGE_KEYS.DRAFT));
+    storage.remove(getKey(STORAGE_KEYS.DRAFT));
   },
 
   removeDraftAction: (agendaItem: string, index: number): void => {
@@ -253,7 +270,7 @@ export const db = {
       { id: 'dev-emp-14', name: 'Jasper Veenstra', role: 'IT', email: 'jasper@bedrijf.nl', avatarColor: 'bg-sky-600' },
       { id: 'dev-emp-15', name: 'Roos van der Meer', role: 'Recruitment', email: 'roos@bedrijf.nl', avatarColor: 'bg-fuchsia-500' }
     ];
-    localStorage.setItem(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(masterEmployees));
+    storage.set(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(masterEmployees));
 
     // 3. Generators
     const decisionsPool = [
@@ -405,14 +422,14 @@ export const db = {
         });
     }
 
-    localStorage.setItem(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(meetings));
+    storage.set(getKey(STORAGE_KEYS.MEETINGS), JSON.stringify(meetings));
   },
 
   resetWorkspace: (): void => {
-    localStorage.removeItem(getKey(STORAGE_KEYS.EMPLOYEES));
-    localStorage.removeItem(getKey(STORAGE_KEYS.MEETINGS));
-    localStorage.removeItem(getKey(STORAGE_KEYS.DRAFT));
+    storage.remove(getKey(STORAGE_KEYS.EMPLOYEES));
+    storage.remove(getKey(STORAGE_KEYS.MEETINGS));
+    storage.remove(getKey(STORAGE_KEYS.DRAFT));
     // Re-initialize with defaults
-    localStorage.setItem(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(DEFAULT_EMPLOYEES));
+    storage.set(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(DEFAULT_EMPLOYEES));
   }
 };
