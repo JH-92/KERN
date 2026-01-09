@@ -10,6 +10,24 @@
     
     <!-- TAILWIND CDN FOR PREVIEW FALLBACK -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              emerald: {
+                500: '#10b981',
+                600: '#059669',
+                700: '#047857'
+              }
+            }
+          }
+        }
+      }
+    </script>
 
     <script type="importmap">
     {
