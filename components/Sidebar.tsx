@@ -266,7 +266,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse })
                         <span className="text-[10px] font-black uppercase text-cyan-700 tracking-widest flex items-center gap-1.5">
                            <Activity size={12} /> Foil Balance
                         </span>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center">
                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
                         </div>
                     </div>

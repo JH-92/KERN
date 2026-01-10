@@ -425,7 +425,7 @@ export const db = {
     notifySubscribers();
   },
 
-  toggleActionStatus: (actionId: string): ActionStatus => {
+  toggleActionStatus: (_actionId: string): ActionStatus => {
     return ActionStatus.OPEN;
   },
 

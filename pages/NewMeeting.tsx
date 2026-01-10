@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Calendar, Users, Save, Plus, PlusCircle, Trash2, 
-  CheckCircle, Info, ClipboardList, Clock, User, Briefcase, Layout,
+  Users, Save, Plus, PlusCircle, Trash2, 
+  CheckCircle, ClipboardList, Clock, Briefcase, Layout,
   GripVertical, List, CheckSquare, Square, X, ChevronDown, RotateCcw,
-  PenTool, ListTodo, AlertCircle, Edit2, AlertTriangle, Gavel, Play, Pause, Hourglass, Zap, ShieldAlert,
-  ChevronUp
+  PenTool, Edit2, Gavel, Play, Pause, Hourglass
 } from 'lucide-react';
 import { db, MeetingDraft } from '../db';
 import { MeetingType, ActionStatus, Employee, Action, Decision, Note, Meeting, Topic, VotingState } from '../types';
@@ -25,6 +24,22 @@ const getWeekNumber = (dateString: string) => {
   const yearStart = new Date(d.getFullYear(), 0, 1);
   const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   return weekNo;
+};
+
+// Binary Stopwatch Component for Director Mode
+const BinaryStopwatch: React.FC<{ time: number }> = ({ time }) => {
+    const toBinary = (num: number) => num.toString(2).padStart(6, '0');
+    const h = Math.floor(time / 3600);
+    const m = Math.floor((time % 3600) / 60);
+    const s = time % 60;
+    
+    return (
+        <div className="flex gap-2 text-[10px] font-mono tracking-widest text-emerald-500">
+            <div>{toBinary(h)}</div>:
+            <div>{toBinary(m)}</div>:
+            <div>{toBinary(s)}</div>
+        </div>
+    );
 };
 
 export const NewMeetingPage: React.FC = () => {
@@ -506,7 +521,7 @@ export const NewMeetingPage: React.FC = () => {
                     <div className={`text-3xl font-black tabular-nums tracking-tighter transition-colors duration-300 ${
                         isDirectorMode && hoverTimer ? 'text-cyan-500' : 'text-slate-900'
                     }`}>
-                        {formatStopwatch(stopwatchTime)}
+                        {hoverTimer && isDirectorMode ? <BinaryStopwatch time={stopwatchTime} /> : formatStopwatch(stopwatchTime)}
                     </div>
                  </div>
                  <button 
@@ -884,5 +899,3 @@ export const NewMeetingPage: React.FC = () => {
     </div>
   );
 };
-
-export default NewMeetingPage;
