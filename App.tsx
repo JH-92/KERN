@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { NewMeetingPage } from './pages/NewMeeting';
+import NewMeetingPage from './pages/NewMeeting';
 import ActionListPage from './pages/ActionList';
 import ArchivePage from './pages/Archive';
 import DashboardPage from './pages/Dashboard';
@@ -11,7 +11,6 @@ import { db } from './db';
 import { Send } from 'lucide-react';
 import { DirectorFX } from './components/DirectorFX';
 
-// --- UX FEATURE 1: SCROLL RESTORATION ---
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -20,7 +19,6 @@ const ScrollToTop = () => {
   return null;
 };
 
-// --- FEATURE 1 & 4: ANIMATED OCEAN LAYER (FULL BACKGROUND + GOLDEN HOUR) ---
 const OceanLayer: React.FC = () => {
     const [isGoldenHour, setIsGoldenHour] = useState(false);
 
@@ -37,10 +35,9 @@ const OceanLayer: React.FC = () => {
     return (
         <div className={`fixed inset-0 z-0 pointer-events-none overflow-hidden transition-colors duration-[2000ms] ${
             isGoldenHour 
-            ? 'bg-gradient-to-b from-orange-50/50 via-orange-100/30 to-amber-200/20' // Golden Hour
-            : 'bg-gradient-to-b from-cyan-50/50 via-cyan-100/30 to-blue-200/20' // Normal
+            ? 'bg-gradient-to-b from-orange-50/50 via-orange-100/30 to-amber-200/20'
+            : 'bg-gradient-to-b from-cyan-50/50 via-cyan-100/30 to-blue-200/20'
         }`}>
-            {/* Infinite Horizontal Wave Animation at Bottom */}
             <div className={`absolute bottom-0 left-0 w-[200%] h-64 flex animate-wave opacity-60 transition-colors duration-[2000ms] ${
                 isGoldenHour ? 'text-amber-300' : 'text-cyan-200'
             }`}>
@@ -54,26 +51,22 @@ const OceanLayer: React.FC = () => {
     );
 };
 
-// --- FEATURE 2 & 3: DYNAMIC CURSOR PHYSICS & SPRAY TRAIL ---
 const DirectorControls: React.FC = () => {
     const [mousePos, setMousePos] = useState({ x: -100, y: -100 });
-    const [rotation, setRotation] = useState(-90); // Base -90deg to point NW
+    const [rotation, setRotation] = useState(-90);
     const [isClicking, setIsClicking] = useState(false);
     const [particles, setParticles] = useState<{id: number, x: number, y: number, life: number}[]>([]);
     
     const lastPos = useRef({ x: 0, y: 0 });
     const requestRef = useRef<number | null>(null);
 
-    // Physics Loop
     useEffect(() => {
         const animate = () => {
-            // Decay rotation back to base -90 when not moving hard
             setRotation(prev => {
                 const diff = -90 - prev;
-                return prev + diff * 0.1; // Smooth return to center
+                return prev + diff * 0.1;
             });
 
-            // Update particles
             setParticles(prev => prev
                 .map(p => ({ ...p, life: p.life - 0.05 }))
                 .filter(p => p.life > 0)
@@ -93,32 +86,18 @@ const DirectorControls: React.FC = () => {
             const dx = e.clientX - lastPos.current.x;
             const dy = e.clientY - lastPos.current.y;
             const dist = Math.hypot(dx, dy);
-
-            // Dynamic Banking
             const bankFactor = 2;
-            // Base is -90 (Top-Left). 
-            // Moving Right (dx > 0) -> Rotate towards -45 (CW)
-            // Moving Left (dx < 0) -> Rotate towards -135 (CCW)
             const targetRotation = -90 + (dx * bankFactor);
             
-            // Limit Banking
             setRotation(Math.max(-135, Math.min(-45, targetRotation)));
-
             setMousePos({ x: e.clientX, y: e.clientY });
 
-            // Generate Spray Trail
             if (dist > 8) {
                 setParticles(prev => [
                     ...prev, 
-                    {
-                        id: Math.random(),
-                        x: e.clientX,
-                        y: e.clientY,
-                        life: 1.0
-                    }
+                    { id: Math.random(), x: e.clientX, y: e.clientY, life: 1.0 }
                 ]);
             }
-
             lastPos.current = { x: e.clientX, y: e.clientY };
         };
 
@@ -138,7 +117,6 @@ const DirectorControls: React.FC = () => {
 
     return (
         <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden">
-            {/* Spray Trail Layer (Behind Cursor) */}
             {particles.map(p => (
                 <div 
                     key={p.id}
@@ -153,17 +131,11 @@ const DirectorControls: React.FC = () => {
                     }}
                 />
             ))}
-
-            {/* Wing Cursor (Send Icon) 
-                Align the sharp tip to 0,0 relative to container by removing centered translate 
-                and relying on the rotation to place the tip at top-left.
-            */}
             <div 
                 className="fixed pointer-events-none text-cyan-600 fill-cyan-600 w-8 h-8 drop-shadow-xl will-change-transform origin-center"
                 style={{
                     left: mousePos.x,
                     top: mousePos.y,
-                    // Translate offset: Pull back slightly so tip is exactly on pixel
                     transform: `translate(-2px, -2px) rotate(${rotation}deg) scale(${isClicking ? 0.9 : 1})`,
                     transition: 'transform 0.1s ease-out'
                 }}
@@ -175,7 +147,6 @@ const DirectorControls: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  // Initialize Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('kern_sidebar_collapsed') === 'true';
@@ -183,17 +154,14 @@ const App: React.FC = () => {
     return false;
   });
 
-  // Director Mode State
   const [isDirectorMode, setIsDirectorMode] = useState(() => {
       return document.documentElement.classList.contains('director-mode');
   });
 
-  // Persist sidebar state
   useEffect(() => {
     localStorage.setItem('kern_sidebar_collapsed', String(isSidebarCollapsed));
   }, [isSidebarCollapsed]);
 
-  // Listen for Director Mode toggles
   useEffect(() => {
       const observer = new MutationObserver((mutations) => {
           mutations.forEach((mutation) => {
@@ -206,7 +174,6 @@ const App: React.FC = () => {
       return () => observer.disconnect();
   }, []);
 
-  // Polling Logic
   useEffect(() => {
     const sessionId = db.getSessionId();
     db.sendHeartbeat(sessionId);
@@ -221,31 +188,15 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <ScrollToTop />
-      {/* Global Director Effects Manager */}
       {isDirectorMode && <DirectorFX />}
-
-      {/* 
-        LAYER 0: Background
-        Normal: AnimatedBackground (Fixed, -z-50)
-        Director: OceanLayer (Fixed, z-0)
-      */}
       {isDirectorMode ? <OceanLayer /> : <AnimatedBackground />}
-      
-      {/* 
-        LAYER 9999: Controls Overlay 
-      */}
       {isDirectorMode && <DirectorControls />}
       
-      {/* 
-        LAYER 10: Content 
-        Container must be relative z-10 to sit above OceanLayer (z-0)
-      */}
       <div className={`flex min-h-screen relative z-10 overflow-x-hidden ${isDirectorMode ? 'bg-transparent' : 'bg-slate-50/60'}`}>
         <Sidebar 
           isCollapsed={isSidebarCollapsed} 
           toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
         />
-        
         <main 
           className={`flex-1 transition-all duration-300 ease-in-out ${
             isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'
