@@ -898,3 +898,5 @@ export const NewMeetingPage: React.FC = () => {
           </div>
         )}
     </div>
+  );
+};
