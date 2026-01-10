@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface CustomDatePickerProps {
   value: string;
@@ -9,6 +9,7 @@ interface CustomDatePickerProps {
   placeholder?: string;
 }
 
+// Helper to calculate ISO week number
 const getISOWeek = (date: Date) => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
@@ -36,9 +37,17 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   placeholder = "Selecteer datum"
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  // View date tracks the month currently being viewed (defaults to value or today)
-  const [viewDate, setViewDate] = useState(() => value ? new Date(value) : new Date());
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Initialize viewDate strictly from local components to avoid UTC shifts
+  const [viewDate, setViewDate] = useState(() => {
+    if (value) {
+      const parts = value.split('-').map(Number);
+      // parts[1] is 1-based month, Date constructor expects 0-based
+      return new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+    return new Date();
+  });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -52,24 +61,27 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
   useEffect(() => {
     if (isOpen && value) {
-      setViewDate(new Date(value));
+      const parts = value.split('-').map(Number);
+      setViewDate(new Date(parts[0], parts[1] - 1, parts[2]));
     }
   }, [isOpen, value]);
 
   const handleDaySelect = (d: number) => {
     const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), d);
-    // Adjust for timezone offset to ensure YYYY-MM-DD matches local selection
-    const offset = newDate.getTimezoneOffset();
-    const adjDate = new Date(newDate.getTime() - (offset * 60 * 1000));
-    onChange(adjDate.toISOString().split('T')[0]);
+    const y = newDate.getFullYear();
+    const m = String(newDate.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(newDate.getDate()).padStart(2, '0');
+    onChange(`${y}-${m}-${dayStr}`);
     setIsOpen(false);
   };
 
   const handleToday = () => {
     const today = new Date();
-    const offset = today.getTimezoneOffset();
-    const adjDate = new Date(today.getTime() - (offset * 60 * 1000));
-    onChange(adjDate.toISOString().split('T')[0]);
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    onChange(`${y}-${m}-${d}`);
+    setViewDate(today);
     setIsOpen(false);
   };
 
@@ -77,30 +89,37 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1));
   };
 
-  // Generate Calendar Grid
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
   
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 = Sun, 1 = Mon
-  
-  // Adjust so Monday is 0, Sunday is 6
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  // Adjust so Monday is 0, Sunday is 6 for grid layout
   const startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
 
   const renderGrid = () => {
     const rows = [];
     let cells = [];
     
-    // Empty cells for previous month
+    // Empty cells for padding start of month
     for (let i = 0; i < startDay; i++) {
       cells.push(<div key={`empty-${i}`} className="h-8 w-8"></div>);
     }
 
     for (let d = 1; d <= daysInMonth; d++) {
-      const currentDateStr = new Date(year, month, d).toISOString().split('T')[0];
+      // Manual string construction to ensure local YYYY-MM-DD match
+      const dateObj = new Date(year, month, d);
+      const currentYear = dateObj.getFullYear();
+      const currentMonth = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const currentDay = String(dateObj.getDate()).padStart(2, '0');
+      const currentDateStr = `${currentYear}-${currentMonth}-${currentDay}`;
+
       const selectedDateStr = value;
       const isSelected = currentDateStr === selectedDateStr;
-      const isToday = new Date().toISOString().split('T')[0] === currentDateStr;
+      
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const isToday = todayStr === currentDateStr;
 
       cells.push(
         <button
@@ -119,10 +138,9 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         </button>
       );
 
-      // If week is full (7 days) or it's the last day, push row
+      // End of week (7 days) or End of month
       if (cells.length === 7 || d === daysInMonth) {
-        // Calculate week number for the first real date in this row, or based on the row logic
-        // We take the date of the first cell that contains a number, or the date corresponding to this row
+        // Calculate week number based on the date of this row
         const checkDate = new Date(year, month, d);
         const weekNum = getISOWeek(checkDate);
 
@@ -136,20 +154,6 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         );
         cells = [];
       }
-    }
-    
-    // Fill remaining cells for last row if needed
-    if (cells.length > 0) {
-       const checkDate = new Date(year, month, daysInMonth);
-       const weekNum = getISOWeek(checkDate);
-       rows.push(
-          <div key="row-last" className="flex items-center gap-1 mb-1">
-             <div className="w-8 flex items-center justify-center border-r border-slate-100 mr-1">
-              <span className="text-[9px] font-black text-slate-300">{weekNum}</span>
-            </div>
-            {cells}
-          </div>
-       );
     }
 
     return rows;

@@ -36,7 +36,10 @@ export interface Decision {
   id: string;
   readable_id: string;
   meetingId: string;
-  text: string;
+  title: string;       // New field
+  description: string; // Renamed/mapped from text
+  owners: string[];    // New field
+  date: string;        // New field
   topic: string;
 }
 

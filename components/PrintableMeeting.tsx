@@ -104,13 +104,24 @@ export const PrintableMeeting: React.FC<PrintableMeetingProps> = ({ meeting }) =
                      <tr>
                         <th className="px-4 py-3 w-32">ID</th>
                         <th className="px-4 py-3">Besluit</th>
+                        <th className="px-4 py-3 w-40">Eigenaar</th>
+                        <th className="px-4 py-3 w-32">Datum</th>
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-300">
                      {meeting.decisions.map((d, i) => (
                         <tr key={i} className="group">
-                           <td className="px-4 py-3 font-mono font-bold text-xs text-slate-500 border-r border-slate-100">{d.readable_id}</td>
-                           <td className="px-4 py-3 font-medium text-slate-900">{d.text}</td>
+                           <td className="px-4 py-3 font-mono font-bold text-xs text-slate-500 border-r border-slate-100 align-top pt-4">{d.readable_id}</td>
+                           <td className="px-4 py-3 border-r border-slate-100 align-top pt-4">
+                              <div className="font-bold text-slate-900 mb-1">{d.title}</div>
+                              <div className="text-xs text-slate-700 leading-relaxed">{d.description}</div>
+                           </td>
+                           <td className="px-4 py-3 text-xs font-bold uppercase text-slate-800 border-r border-slate-100 align-top pt-4">
+                              {d.owners && d.owners.length > 0 ? d.owners.join(', ') : '-'}
+                           </td>
+                           <td className="px-4 py-3 text-xs font-bold text-slate-900 align-top pt-4">
+                              {d.date || '-'}
+                           </td>
                         </tr>
                      ))}
                   </tbody>

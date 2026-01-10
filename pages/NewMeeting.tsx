@@ -5,7 +5,7 @@ import {
   Calendar, Users, Save, Plus, PlusCircle, Trash2, 
   CheckCircle, Info, ClipboardList, Clock, User, Briefcase, Layout,
   GripVertical, List, CheckSquare, Square, X, ChevronDown, RotateCcw,
-  PenTool, ListTodo, AlertCircle, Edit2, AlertTriangle
+  PenTool, ListTodo, AlertCircle, Edit2, AlertTriangle, Gavel
 } from 'lucide-react';
 import { db, MeetingDraft } from '../db';
 import { MeetingType, ActionStatus, Employee, Action, Decision, Note, Meeting, Topic } from '../types';
@@ -23,16 +23,18 @@ const getWeekNumber = (dateString: string) => {
   return weekNo;
 };
 
-// Helper to get local date string YYYY-MM-DD to avoid UTC shifts
+// Helper to get local date string YYYY-MM-DD reliably without time offsets
 const getLocalDateString = () => {
   const now = new Date();
-  const offset = now.getTimezoneOffset() * 60000;
-  const localISOTime = new Date(now.getTime() - offset).toISOString().split('T')[0];
-  return localISOTime;
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // Extended Type for UI state
 type DraftAction = Partial<Action> & { isLocked?: boolean };
+type DraftDecision = Partial<Decision> & { isLocked?: boolean };
 
 const NewMeetingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -52,13 +54,10 @@ const NewMeetingPage: React.FC = () => {
   const [topics, setTopics] = useState<Record<string, Topic[]>>(savedDraft?.topics || {});
   const [topicInputs, setTopicInputs] = useState<Record<string, string>>(savedDraft?.topicInputs || {});
   
-  // Action Cart initialized with Draft
+  // Action & Decision Cart initialized with Draft
   const [tempActions, setTempActions] = useState<Record<string, DraftAction[]>>(savedDraft?.tempActions || {});
+  const [tempDecisions, setTempDecisions] = useState<Record<string, DraftDecision[]>>(savedDraft?.tempDecisions || {});
   
-  // Decision Cart & Drafts initialized with Draft
-  const [committedDecisions, setCommittedDecisions] = useState<Record<string, string[]>>(savedDraft?.committedDecisions || {});
-  const [decisionDrafts, setDecisionDrafts] = useState<Record<string, string>>(savedDraft?.decisionDrafts || {});
-
   // Past Actions State
   const [pastActions, setPastActions] = useState<Action[]>([]);
   
@@ -85,11 +84,10 @@ const NewMeetingPage: React.FC = () => {
       topics,
       topicInputs,
       tempActions,
-      committedDecisions,
-      decisionDrafts
+      tempDecisions
     };
     db.saveDraft(draft);
-  }, [date, meetingType, selectedAttendees, notes, topics, topicInputs, tempActions, committedDecisions, decisionDrafts]);
+  }, [date, meetingType, selectedAttendees, notes, topics, topicInputs, tempActions, tempDecisions]);
 
   const weekNumber = useMemo(() => getWeekNumber(date), [date]);
 
@@ -115,8 +113,7 @@ const NewMeetingPage: React.FC = () => {
     setTopics({});
     setTopicInputs({});
     setTempActions({});
-    setCommittedDecisions({});
-    setDecisionDrafts({});
+    setTempDecisions({});
     
     setShowResetConfirm(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -172,15 +169,18 @@ const NewMeetingPage: React.FC = () => {
 
     let decisionCounter = db.getMeetings().flatMap(m => m.decisions).length + 1;
     const formattedDecisions: Decision[] = [];
-    Object.entries(committedDecisions).forEach(([item, list]) => {
+    Object.entries(tempDecisions).forEach(([item, list]) => {
       if (!currentAgenda.includes(item)) return;
-      (list as string[]).forEach((d) => {
-        if (d) {
+      (list as DraftDecision[]).forEach((d) => {
+        if (d.title && d.description) {
           formattedDecisions.push({
             id: `${meetingId}-bes-${decisionCounter}`,
             readable_id: `BES-26-${decisionCounter.toString().padStart(3, '0')}`,
             meetingId,
-            text: d,
+            title: d.title,
+            description: d.description,
+            owners: d.owners || [],
+            date: d.date || date,
             topic: item
           });
           decisionCounter++;
@@ -243,6 +243,7 @@ const NewMeetingPage: React.FC = () => {
     setTopics(prev => ({ ...prev, [item]: prev[item]?.filter(t => t.id !== topicId) || [] }));
   };
 
+  // --- ACTIONS LOGIC ---
   const addActionToCart = (item: string) => {
     setTempActions(prev => ({ 
       ...prev, 
@@ -299,25 +300,61 @@ const NewMeetingPage: React.FC = () => {
     });
   };
 
-  const updateDecisionDraft = (item: string, text: string) => {
-    setDecisionDrafts(prev => ({ ...prev, [item]: text }));
+  // --- DECISIONS LOGIC ---
+  const addDecisionToCart = (item: string) => {
+    setTempDecisions(prev => ({ 
+      ...prev, 
+      [item]: [...(prev[item] || []), { title: '', description: '', owners: [], date: date, isLocked: false }] 
+    }));
   };
 
-  const commitDecision = (item: string) => {
-    const text = decisionDrafts[item]?.trim();
-    if (!text) return;
-    setCommittedDecisions(prev => ({
-      ...prev,
-      [item]: [...(prev[item] || []), text]
-    }));
-    setDecisionDrafts(prev => ({ ...prev, [item]: '' }));
+  const updateDecision = (item: string, index: number, field: keyof Decision, value: any) => {
+    setTempDecisions(prev => {
+      const newList = [...(prev[item] || [])];
+      newList[index] = { ...newList[index], [field]: value };
+      return { ...prev, [item]: newList };
+    });
   };
 
-  const removeCommittedDecision = (item: string, index: number) => {
-    setCommittedDecisions(prev => ({
-      ...prev,
-      [item]: prev[item].filter((_, i) => i !== index)
-    }));
+  const toggleDecisionOwner = (item: string, index: number, ownerName: string) => {
+    setTempDecisions(prev => {
+      const newList = [...(prev[item] || [])];
+      const currentOwners = newList[index].owners || [];
+      const isSelected = currentOwners.includes(ownerName);
+      newList[index] = {
+        ...newList[index],
+        owners: isSelected ? currentOwners.filter(o => o !== ownerName) : [...currentOwners, ownerName]
+      };
+      return { ...prev, [item]: newList };
+    });
+  };
+
+  const removeDecision = (item: string, index: number) => {
+    setTempDecisions(prev => ({ ...prev, [item]: prev[item].filter((_, i) => i !== index) }));
+  };
+
+  const lockDecision = (item: string, index: number) => {
+    const decision = tempDecisions[item]?.[index];
+    if (!decision) return;
+    
+    if (!decision.title?.trim()) {
+        showToast("Vul een titel in om het besluit vast te leggen.");
+        return;
+    }
+
+    setTempDecisions(prev => {
+        const newList = [...(prev[item] || [])];
+        newList[index] = { ...newList[index], isLocked: true };
+        return { ...prev, [item]: newList };
+    });
+  };
+
+  const unlockDecision = (item: string, index: number) => {
+    setTempDecisions(prev => {
+        const newList = [...(prev[item] || [])];
+        newList[index] = { ...newList[index], isLocked: false };
+        return { ...prev, [item]: newList };
+    });
   };
 
   return (
@@ -643,37 +680,108 @@ const NewMeetingPage: React.FC = () => {
                         <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center">
                           <PlusCircle className="w-6 h-6 text-emerald-600 mr-3" /> Besluit vastleggen
                         </h4>
-                        <div className="p-2 bg-emerald-50 text-emerald-300 rounded-full">
+                        <button 
+                          onClick={() => addDecisionToCart(item)} 
+                          className="bg-emerald-600 text-white p-2 rounded-full hover:scale-110 transition-transform"
+                        >
                             <Plus size={20} />
-                        </div>
+                        </button>
                       </div>
-                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-[2rem] space-y-4">
-                        <textarea 
-                          placeholder="Beschrijf het besluit..."
-                          value={decisionDrafts[item] || ''}
-                          onChange={(e) => updateDecisionDraft(item, e.target.value)}
-                          className="w-full min-h-[100px] text-sm font-bold bg-white px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:border-emerald-500 transition-colors"
-                        />
-                        <div className="flex justify-end">
-                           <button onClick={() => commitDecision(item)} disabled={!decisionDrafts[item]?.trim()} className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white px-6 h-12 rounded-xl font-black text-xs uppercase tracking-widest transition-all">
-                             Vastleggen
-                           </button>
-                        </div>
+
+                      <div className="space-y-4">
+                         {tempDecisions[item]?.map((decision, idx) => (
+                           <div key={`dec-input-${idx}`} className={`bg-slate-50 border border-slate-200 rounded-[2rem] shadow-sm animate-in zoom-in-95 transition-all ${decision.isLocked ? 'p-0 overflow-hidden' : 'p-6'}`}>
+                              {!decision.isLocked ? (
+                                 // EDIT MODE
+                                 <div className="space-y-4">
+                                    <div className="space-y-2">
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Titel</label>
+                                      <input 
+                                        type="text"
+                                        placeholder="Korte titel (bijv. Budget goedgekeurd)"
+                                        value={decision.title || ''}
+                                        onChange={(e) => updateDecision(item, idx, 'title', e.target.value)}
+                                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-100 font-bold text-slate-800"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Omschrijving</label>
+                                      <textarea 
+                                        placeholder="Details van het besluit..."
+                                        value={decision.description || ''}
+                                        onChange={(e) => updateDecision(item, idx, 'description', e.target.value)}
+                                        className="w-full min-h-[100px] text-sm font-medium bg-white px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:border-emerald-500 transition-colors"
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                       <select 
+                                          onChange={(e) => {
+                                            if (e.target.value) {
+                                              toggleDecisionOwner(item, idx, e.target.value);
+                                              e.target.value = '';
+                                            }
+                                          }}
+                                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-black outline-none"
+                                       >
+                                          <option value="">+ Eigenaar</option>
+                                          {employees.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
+                                       </select>
+                                       <CustomDatePicker
+                                          value={decision.date || date}
+                                          onChange={(newDate) => updateDecision(item, idx, 'date', newDate)}
+                                          placeholder="Datum"
+                                       />
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {decision.owners?.map(owner => (
+                                            <button key={owner} onClick={() => toggleDecisionOwner(item, idx, owner)} className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-black uppercase flex items-center gap-1">
+                                               {owner} <X size={10} />
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center justify-between pt-2">
+                                      <button onClick={() => removeDecision(item, idx)} className="text-slate-400 hover:text-red-500 text-[10px] font-black uppercase flex items-center gap-1">
+                                        <Trash2 size={14}/> Verwijderen
+                                      </button>
+                                      <button 
+                                        onClick={() => lockDecision(item, idx)}
+                                        className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 h-12 rounded-xl border border-emerald-100 transition-colors shadow-sm"
+                                      >
+                                          <Gavel size={16} />
+                                          <span className="text-xs font-black uppercase tracking-widest">Besluit Opslaan</span>
+                                      </button>
+                                    </div>
+                                 </div>
+                              ) : (
+                                 // READ ONLY MODE
+                                 <div className="flex items-start justify-between p-4 bg-emerald-50/30 hover:bg-emerald-50/60 transition-colors border-l-4 border-emerald-500">
+                                    <div className="flex-1 pr-4">
+                                        <h5 className="font-bold text-slate-800 text-sm mb-1">{decision.title}</h5>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                               <Clock size={10} /> {decision.date}
+                                            </div>
+                                            {decision.owners?.map(owner => (
+                                                <span key={owner} className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-md uppercase">
+                                                    {owner}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <button onClick={() => unlockDecision(item, idx)} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-100 rounded-lg transition-colors">
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => removeDecision(item, idx)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                 </div>
+                              )}
+                           </div>
+                         ))}
+                         {/* Empty State hint if needed, or left clean */}
                       </div>
-                      {committedDecisions[item]?.length > 0 && (
-                        <div className="space-y-3 pt-2">
-                           {committedDecisions[item].map((decisionText, idx) => (
-                             <div key={idx} className="flex items-start gap-4 p-5 bg-emerald-50/20 border-l-4 border-emerald-500 rounded-r-2xl">
-                               <div className="flex-1">
-                                 <p className="text-sm font-bold text-slate-800">{decisionText}</p>
-                               </div>
-                               <button onClick={() => removeCommittedDecision(item, idx)} className="text-slate-300 hover:text-red-500 p-1">
-                                 <Trash2 size={16} />
-                               </button>
-                             </div>
-                           ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>

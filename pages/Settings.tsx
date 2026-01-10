@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { Employee } from '../types';
-import { UserPlus, Trash2, Edit3, Search, Users, UploadCloud, X, CheckCircle, Database, AlertTriangle, ToggleLeft, ToggleRight, Bomb, Share2, Copy } from 'lucide-react';
+import { UserPlus, Trash2, Edit3, Search, Users, UploadCloud, X, CheckCircle, Database, AlertTriangle, ToggleLeft, ToggleRight, Bomb, Share2, Copy, Link as LinkIcon, ShieldAlert, FileSpreadsheet } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 
 const SettingsPage: React.FC = () => {
@@ -72,7 +72,6 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleDeleteUser = (emp: Employee) => {
-    // Direct delete for better UX in Teams (can be undone by adding back)
     const updatedList = db.removeEmployee(emp.id);
     setEmployees([...updatedList]); 
     showToast(`${emp.name} verwijderd.`);
@@ -93,10 +92,57 @@ const SettingsPage: React.FC = () => {
     showToast("Workspace volledig gewist.");
   };
 
+  const handleExportData = () => {
+    const meetings = db.getMeetings();
+    const rows = [['Type', 'ID', 'Titel', 'Omschrijving', 'Eigenaar', 'Datum/Deadline', 'Status', 'Meeting Datum', 'Meeting Type']];
+    
+    meetings.forEach(m => {
+        m.actions.forEach(a => {
+            rows.push([
+                'ACTIE', 
+                a.readable_id, 
+                `"${(a.title || '').replace(/"/g, '""')}"`, 
+                `"${(a.description || '').replace(/"/g, '""')}"`, 
+                (a.owners || []).join('; '), 
+                a.deadline, 
+                a.status, 
+                m.date, 
+                m.type
+            ]);
+        });
+        m.decisions.forEach(d => {
+            rows.push([
+                'BESLUIT', 
+                d.readable_id, 
+                `"${(d.title || '').replace(/"/g, '""')}"`, 
+                `"${(d.description || '').replace(/"/g, '""')}"`, 
+                (d.owners || []).join('; '), 
+                d.date, 
+                'VASTGELEGD', 
+                m.date, 
+                m.type
+            ]);
+        });
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `KERN_DATA_EXPORT_${currentWorkspace}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Excel-bestand wordt gedownload.");
+  };
+
   const handleCopyLink = () => {
-     const url = window.location.href;
-     navigator.clipboard.writeText(url);
-     showToast("Deelbare link gekopieerd!");
+     const baseUrl = window.location.origin + window.location.pathname;
+     const cleanBase = baseUrl.split('#')[0].split('?')[0];
+     const link = `${cleanBase}?ws=${currentWorkspace}`;
+     
+     navigator.clipboard.writeText(link);
+     showToast("Workspace link gekopieerd!");
   };
 
   const openEdit = (emp: Employee) => {
@@ -122,171 +168,217 @@ const SettingsPage: React.FC = () => {
     emp.role?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getRoleBadgeStyle = (role?: string) => {
+      const r = role?.toLowerCase() || '';
+      if (r.includes('hr')) return 'bg-pink-100 text-pink-700';
+      if (r.includes('it') || r.includes('dev')) return 'bg-slate-200 text-slate-700';
+      if (r.includes('sales') || r.includes('marketing')) return 'bg-purple-100 text-purple-700';
+      if (r.includes('directie') || r.includes('management')) return 'bg-blue-100 text-blue-700';
+      if (r.includes('finance')) return 'bg-emerald-100 text-emerald-700';
+      return 'bg-slate-100 text-slate-600';
+  };
+
   return (
     <div className="pb-40 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
-      <PageHeader title="Personeelsbeheer" subtitle="Beheer het centrale register van alle medewerkers en teams." />
+      <PageHeader title="Instellingen" subtitle="Beheer workspace, medewerkers en systeemconfiguratie." />
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+      <div className="space-y-12 max-w-5xl mx-auto">
         
-        {/* Main Personnel List Area */}
-        <div className="xl:col-span-2 space-y-8">
-          
-          {/* Controls */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <input 
-                type="text"
-                placeholder="Zoek collega's op naam of rol..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all font-medium text-slate-700"
-              />
-            </div>
-            <button 
-              onClick={openAdd}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 transition-all active:scale-95"
-            >
-              <UserPlus size={20} />
-              <span className="hidden sm:inline">Nieuwe medewerker</span>
-            </button>
-            <button 
-              onClick={() => setShowBatchModal(true)}
-              className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-4 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
-              title="Bulk import"
-            >
-              <UploadCloud size={20} />
-            </button>
-          </div>
-
-          {/* Employee List */}
-          <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-100">
-                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Medewerker</th>
-                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rol / Team</th>
-                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Acties</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredEmployees.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="px-8 py-16 text-center text-slate-400 italic">
-                        Geen medewerkers gevonden.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredEmployees.map((emp) => (
-                      <tr key={emp.id} className="group hover:bg-slate-50 transition-colors">
-                        <td className="px-8 py-4">
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-full ${emp.avatarColor || 'bg-slate-400'} flex items-center justify-center text-white font-black text-xs shadow-md`}>
-                              {emp.name.substring(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-800 text-sm">{emp.name}</div>
-                              <div className="text-xs text-slate-400 font-medium">{emp.email || 'Geen e-mail'}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-8 py-4">
-                          {emp.role ? (
-                            <span className="inline-block px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black uppercase tracking-wide">
-                              {emp.role}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 text-xs italic">-</span>
-                          )}
-                        </td>
-                        <td className="px-8 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                              onClick={() => openEdit(emp)}
-                              className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
-                            >
-                              <Edit3 size={18} />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteUser(emp)}
-                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar Info & Developer Tools */}
-        <div className="space-y-6">
-           {/* Workspace Info Card */}
-           <div className="bg-white p-8 rounded-[2rem] text-slate-900 shadow-xl shadow-slate-200/50 relative overflow-hidden border border-slate-200 border-l-4 border-l-emerald-500">
-             <div className="absolute -right-6 -bottom-6 opacity-5">
-               <Share2 size={120} className="text-slate-900" />
-             </div>
-             <h3 className="text-lg font-black mb-2 flex items-center gap-3">
-               <Share2 size={20} className="text-emerald-600" /> Gedeelde Workspace
-             </h3>
-             <p className="text-slate-500 text-xs mb-6 font-medium leading-relaxed">
-                Je werkt in een gedeelde omgeving. Iedereen met deze link ziet dezelfde data.
-             </p>
-             <div className="bg-slate-50 p-3 rounded-xl flex items-center justify-between mb-6 border border-slate-200">
-                 <code className="text-xs font-mono text-slate-600 font-bold">{currentWorkspace}</code>
-                 <button onClick={handleCopyLink} className="bg-white hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 p-2 rounded-lg border border-slate-200 transition-colors shadow-sm">
-                     <Copy size={14} />
-                 </button>
-             </div>
-             <div className="flex items-center gap-3">
-                <span className="text-3xl font-black tracking-tighter text-slate-900">{employees.length}</span>
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Actieve profielen</span>
-             </div>
-           </div>
-
-           {/* DEVELOPER TOOLS CARD */}
-           <div className="bg-white p-8 rounded-[2rem] text-slate-900 shadow-xl shadow-slate-200/50 relative overflow-hidden border border-slate-200 border-l-4 border-l-emerald-500">
-             <div className="flex items-center justify-between mb-6">
-               <h3 className="text-lg font-black flex items-center gap-3">
-                 <Database size={20} className="text-emerald-600" /> Ontwikkelaarstools
-               </h3>
-               <button onClick={() => setDevMode(!devMode)} className="transition-colors">
-                  {devMode ? <ToggleRight size={32} className="text-emerald-500"/> : <ToggleLeft size={32} className="text-slate-300"/>}
-               </button>
-             </div>
-
-             {devMode ? (
-               <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                 <button 
-                   onClick={() => setShowInjectConfirm(true)}
-                   className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg transition-all active:scale-95"
-                 >
-                   <Database size={16} /> Demo dataset injecteren
-                 </button>
+        {/* SECTION 1: PROMINENT SHARED WORKSPACE */}
+        <section className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-200 border-l-4 border-l-emerald-500 overflow-hidden hover:-translate-y-1 hover:shadow-2xl transition-all duration-300">
+             <div className="p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+                 <div className="flex-1">
+                     <div className="flex items-center gap-3 mb-2">
+                        <Share2 size={24} className="text-emerald-600" />
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight">Gedeelde Workspace</h3>
+                     </div>
+                     <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xl">
+                        U werkt in een gedeelde omgeving. Alle wijzigingen zijn direct zichtbaar voor teamleden met toegang tot deze workspace-ID.
+                     </p>
+                 </div>
                  
-                 <button 
-                   onClick={() => setShowResetConfirm(true)}
-                   className="w-full flex items-center justify-center gap-2 bg-transparent border-2 border-red-500/50 hover:bg-red-500/10 text-red-400 hover:text-red-300 p-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95"
-                 >
-                   <Bomb size={16} /> Workspace Wissen
-                 </button>
-                 <p className="text-[10px] text-slate-500 text-center italic mt-2">
-                   Actief op: <strong>{currentWorkspace}</strong>
-                 </p>
-               </div>
-             ) : (
-               <p className="text-xs text-slate-400 py-2 italic font-medium">
-                 Schakel in voor geavanceerd beheer.
-               </p>
-             )}
-           </div>
-        </div>
+                 <div className="w-full md:w-auto bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-3 min-w-[300px]">
+                     <div className="flex items-center justify-between">
+                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Workspace ID</span>
+                         <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                             <CheckCircle size={12} /> Actief
+                         </span>
+                     </div>
+                     <div className="flex items-center gap-2">
+                         <code className="flex-1 text-base font-mono font-bold text-slate-800 bg-white px-3 py-2 rounded-lg border border-slate-100 select-all">
+                            {currentWorkspace}
+                         </code>
+                         <button 
+                            onClick={handleCopyLink} 
+                            className="bg-slate-900 hover:bg-emerald-600 text-white p-2.5 rounded-lg transition-colors shadow-lg"
+                            title="Kopieer deelbare link"
+                         >
+                             <LinkIcon size={18} />
+                         </button>
+                     </div>
+                 </div>
+             </div>
+        </section>
+
+        {/* SECTION 2: EMPLOYEE MANAGEMENT */}
+        <section className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="bg-blue-50 p-2 rounded-xl text-blue-600">
+                        <Users size={24} />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900">Personeelsbestand</h3>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 md:w-64">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input 
+                            type="text"
+                            placeholder="Zoeken..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                        />
+                    </div>
+                    <button 
+                        onClick={openAdd}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-100 transition-all"
+                    >
+                        <UserPlus size={16} /> <span className="hidden sm:inline">Toevoegen</span>
+                    </button>
+                    <button 
+                        onClick={() => setShowBatchModal(true)}
+                        className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 p-3 rounded-xl shadow-sm transition-all"
+                        title="Bulk Import"
+                    >
+                        <UploadCloud size={20} />
+                    </button>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50/80 border-b border-slate-100">
+                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest w-1/3">Naam & Email</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rol / Functie</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Beheer</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredEmployees.length === 0 ? (
+                                <tr>
+                                    <td colSpan={3} className="px-8 py-16 text-center text-slate-400 italic">
+                                        Geen medewerkers gevonden.
+                                    </td>
+                                </tr>
+                            ) : (
+                                filteredEmployees.map((emp) => (
+                                    <tr key={emp.id} className="group hover:bg-slate-50 transition-colors">
+                                        <td className="px-8 py-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-10 h-10 rounded-full ${emp.avatarColor || 'bg-slate-400'} flex items-center justify-center text-white font-black text-xs shadow-md border-2 border-white`}>
+                                                    {emp.name.substring(0, 2).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-slate-900 text-sm">{emp.name}</div>
+                                                    <div className="text-xs text-slate-400 font-medium">{emp.email || '—'}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-4">
+                                            {emp.role ? (
+                                                <span className={`inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide ${getRoleBadgeStyle(emp.role)}`}>
+                                                    {emp.role}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-300 text-xs italic">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-8 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => openEdit(emp)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all">
+                                                    <Edit3 size={18} />
+                                                </button>
+                                                <button onClick={() => handleDeleteUser(emp)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        {/* SECTION 3: DIVIDER */}
+        <hr className="border-slate-200" />
+
+        {/* SECTION 4: DEVELOPER TOOLS & EXPORT */}
+        <section className="bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 p-8 relative overflow-hidden">
+             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                 <div>
+                     <div className="flex items-center gap-3 mb-2">
+                         <div className="bg-slate-200 text-slate-600 p-1.5 rounded-lg">
+                             <Database size={18} />
+                         </div>
+                         <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">Systeembeheer</h3>
+                     </div>
+                     <p className="text-xs text-slate-500 max-w-lg leading-relaxed">
+                         Beheer geavanceerde instellingen, exporteer data en voer systeemacties uit. 
+                         <span className="block mt-1 font-bold text-slate-600 flex items-center gap-1">
+                             <ShieldAlert size={12} className="text-amber-500" />
+                             Waarschuwing: Het wissen van de workspace is onomkeerbaar.
+                         </span>
+                     </p>
+                 </div>
+
+                 <div className="flex flex-wrap items-center gap-4">
+                      {/* ALWAYS VISIBLE EXPORT BUTTON */}
+                      <button
+                        onClick={handleExportData}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:shadow-emerald-200 transition-all flex items-center gap-2"
+                      >
+                         <FileSpreadsheet size={16} />
+                         Data Dump (Excel)
+                      </button>
+
+                      <div className="w-px h-10 bg-slate-300 mx-2 hidden md:block"></div>
+
+                      {devMode ? (
+                          <div className="flex gap-3 animate-in fade-in slide-in-from-right-4">
+                              <button 
+                                onClick={() => setShowInjectConfirm(true)}
+                                className="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                              >
+                                  <Database size={14} /> Demo Data
+                              </button>
+                              <button 
+                                onClick={() => setShowResetConfirm(true)}
+                                className="bg-white hover:bg-red-50 text-red-600 border border-red-200 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                              >
+                                  <Bomb size={14} /> Reset
+                              </button>
+                          </div>
+                      ) : (
+                          <p className="text-xs text-slate-400 italic pr-2">Dev Tools →</p>
+                      )}
+                      
+                      <button 
+                        onClick={() => setDevMode(!devMode)} 
+                        className={`transition-colors ${devMode ? 'text-emerald-500' : 'text-slate-300 hover:text-slate-400'}`}
+                      >
+                          {devMode ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+                      </button>
+                 </div>
+             </div>
+        </section>
+
       </div>
 
       {/* MODAL: Add / Edit Employee */}
@@ -403,7 +495,7 @@ const SettingsPage: React.FC = () => {
             </div>
             <h3 className="text-2xl font-black text-slate-900 mb-2">KERN Dataset</h3>
             <p className="text-sm text-slate-500 mb-8 leading-relaxed">
-              De huidige data wordt overschreven met een volledige demonstratie-set (15 medewerkers, 10 vergaderingen).
+              De huidige data wordt overschreven met een volledige demonstratie-set (15 medewerkers, 10 vergaderingen en rijke besluitdata).
             </p>
             <div className="flex gap-3">
                <button onClick={() => setShowInjectConfirm(false)} className="flex-1 bg-white border-2 border-slate-200 text-slate-700 py-4 rounded-xl font-black text-sm uppercase tracking-widest">

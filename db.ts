@@ -1,14 +1,30 @@
 
-import { Employee, Meeting, Action, ActionStatus, Note, Topic, MeetingType } from './types';
+import { Employee, Meeting, Action, ActionStatus, Note, Topic, MeetingType, Decision } from './types';
 
 // --- WORKSPACE MANAGEMENT (TEAMS COMPATIBLE) ---
 // Uses URL query param ?ws=... to isolate data.
-// Safe check for window existence.
+// Logic: URL > LocalStorage > Default
 const getWorkspaceId = (): string => {
   if (typeof window === 'undefined') return 'default';
+  
   const params = new URLSearchParams(window.location.search);
-  const ws = params.get('ws');
-  return ws ? ws.toLowerCase().replace(/[^a-z0-9-_]/g, '') : 'default';
+  const wsParam = params.get('ws');
+
+  // 1. URL is LEADING. If present, use it and update persistence.
+  if (wsParam) {
+    const cleanId = wsParam.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+    localStorage.setItem('kern_workspace_id', cleanId);
+    return cleanId;
+  }
+
+  // 2. Fallback to Persisted ID (Safety net for reloads/navigation)
+  const storedId = localStorage.getItem('kern_workspace_id');
+  if (storedId) {
+    return storedId;
+  }
+
+  // 3. Default
+  return 'default';
 };
 
 const WORKSPACE_ID = getWorkspaceId();
@@ -48,8 +64,7 @@ export interface MeetingDraft {
   topics: Record<string, Topic[]>;
   topicInputs: Record<string, string>;
   tempActions: Record<string, (Partial<Action> & { isLocked?: boolean })[]>;
-  committedDecisions: Record<string, string[]>;
-  decisionDrafts: Record<string, string>;
+  tempDecisions: Record<string, (Partial<Decision> & { isLocked?: boolean })[]>;
 }
 
 // Helper for safe storage access
@@ -241,8 +256,8 @@ export const db = {
 
   removeDraftDecision: (agendaItem: string, index: number): void => {
     const draft = db.getDraft();
-    if (draft && draft.committedDecisions[agendaItem]) {
-      draft.committedDecisions[agendaItem] = draft.committedDecisions[agendaItem].filter((_, i) => i !== index);
+    if (draft && draft.tempDecisions && draft.tempDecisions[agendaItem]) {
+      draft.tempDecisions[agendaItem] = draft.tempDecisions[agendaItem].filter((_, i) => i !== index);
       db.saveDraft(draft);
     }
   },
@@ -252,14 +267,14 @@ export const db = {
     // 1. Wipe current workspace
     db.resetWorkspace();
 
-    // 2. Inject 15 Employees
+    // 2. Inject 15 Employees with diverse roles
     const masterEmployees: Employee[] = [
       { id: 'dev-emp-1', name: 'Jan de Vries', role: 'Directie', email: 'jan@bedrijf.nl', avatarColor: 'bg-blue-600' },
       { id: 'dev-emp-2', name: 'Annelies Bakker', role: 'HR Manager', email: 'annelies@bedrijf.nl', avatarColor: 'bg-pink-500' },
       { id: 'dev-emp-3', name: 'Pieter Post', role: 'Operations', email: 'pieter@bedrijf.nl', avatarColor: 'bg-emerald-600' },
       { id: 'dev-emp-4', name: 'Sanne Smit', role: 'Marketing', email: 'sanne@bedrijf.nl', avatarColor: 'bg-purple-500' },
-      { id: 'dev-emp-5', name: 'Willem van Dijk', role: 'CTO', email: 'willem@bedrijf.nl', avatarColor: 'bg-slate-600' },
-      { id: 'dev-emp-6', name: 'Eva de Jong', role: 'Sales', email: 'eva@bedrijf.nl', avatarColor: 'bg-orange-500' },
+      { id: 'dev-emp-5', name: 'Willem van Dijk', role: 'IT Manager', email: 'willem@bedrijf.nl', avatarColor: 'bg-slate-600' },
+      { id: 'dev-emp-6', name: 'Eva de Jong', role: 'Sales Lead', email: 'eva@bedrijf.nl', avatarColor: 'bg-orange-500' },
       { id: 'dev-emp-7', name: 'Tom Jansen', role: 'Productie', email: 'tom@bedrijf.nl', avatarColor: 'bg-amber-600' },
       { id: 'dev-emp-8', name: 'Lisa Kuipers', role: 'Support', email: 'lisa@bedrijf.nl', avatarColor: 'bg-teal-500' },
       { id: 'dev-emp-9', name: 'Mark Visser', role: 'Finance', email: 'mark@bedrijf.nl', avatarColor: 'bg-cyan-600' },
@@ -267,23 +282,24 @@ export const db = {
       { id: 'dev-emp-11', name: 'Kevin Meijer', role: 'Logistiek', email: 'kevin@bedrijf.nl', avatarColor: 'bg-lime-600' },
       { id: 'dev-emp-12', name: 'Linda Groot', role: 'Office', email: 'linda@bedrijf.nl', avatarColor: 'bg-rose-500' },
       { id: 'dev-emp-13', name: 'Rick Bakker', role: 'Stagiair', email: 'rick@bedrijf.nl', avatarColor: 'bg-yellow-500' },
-      { id: 'dev-emp-14', name: 'Jasper Veenstra', role: 'IT', email: 'jasper@bedrijf.nl', avatarColor: 'bg-sky-600' },
+      { id: 'dev-emp-14', name: 'Jasper Veenstra', role: 'IT Support', email: 'jasper@bedrijf.nl', avatarColor: 'bg-sky-600' },
       { id: 'dev-emp-15', name: 'Roos van der Meer', role: 'Recruitment', email: 'roos@bedrijf.nl', avatarColor: 'bg-fuchsia-500' }
     ];
     storage.set(getKey(STORAGE_KEYS.EMPLOYEES), JSON.stringify(masterEmployees));
 
     // 3. Generators
+    // Updated Decisions Pool: [Title, Description]
     const decisionsPool = [
-        "Budget voor Q1 goedgekeurd.", "Servermigratie datum vastgelegd.", 
-        "Aannamebeleid herzien.", "Marketingcampagne Zomer gestart.",
-        "Nieuwe leverancier geselecteerd.", "Thuiswerkbeleid definitief.",
-        "Investering productielijn akkoord.", "Bedrijfsuitje gepland.",
-        "Klachtenprocedure aangescherpt.", "Veiligheidsprotocollen update.",
-        "Sponsoring verlengd.", "Leasecontracten vernieuwd.",
-        "CRM migratie goedgekeurd.", "Bonusregeling herzien.",
-        "ISO traject gestart.", "Catering uitbesteed.",
-        "Magazijnuitbreiding akkoord.", "Training MT verplicht.",
-        "Nieuwe huisstijl gekozen.", "Salarisverhoging toegepast."
+        ["Budget Q1", "Het budget voor Q1 is na herziening goedgekeurd door de directie."],
+        ["Servermigratie", "De datum voor de servermigratie is definitief vastgelegd op 23 maart."],
+        ["Aannamebeleid", "Het nieuwe aannamebeleid treedt per direct in werking."],
+        ["Zomercampagne", "Startschot gegeven voor de 'Summer Vibes' marketingcampagne."],
+        ["Leverancier", "IT-Supplies BV is geselecteerd als nieuwe vaste hardware leverancier."],
+        ["Thuiswerken", "Thuiswerkbeleid is aangepast: minimaal 2 dagen op kantoor verplicht."],
+        ["Investering", "Akkoord op de investering voor een nieuwe verpakkingslijn."],
+        ["Bedrijfsuitje", "Datum voor het bedrijfsuitje is geprikt op 15 juni."],
+        ["Klachten", "De procedure voor klachtenafhandeling is aangescherpt na feedback."],
+        ["Veiligheid", "Update van de veiligheidsprotocollen in het magazijn is goedgekeurd."]
     ];
     
     // Updated Actions Pool: [Title, Description]
@@ -350,15 +366,26 @@ export const db = {
             .slice(0, 5 + Math.floor(Math.random() * 4))
             .map(e => e.name);
 
-        // Decisions
+        // Decisions: Ensure rich data structure
         const meetingDecisions = [];
-        for(let d=0; d < 2; d++) {
-            if (globalDecisionIndex >= 20) break;
+        // Generate 2 to 3 decisions per meeting
+        const numDecisions = 2 + Math.floor(Math.random() * 2);
+        
+        for(let d=0; d < numDecisions; d++) {
+            if (globalDecisionIndex >= decisionsPool.length * 2) break; // limit total decisions
+            const [decTitle, decDesc] = decisionsPool[globalDecisionIndex % decisionsPool.length];
+            
+            // Random owner from attendees or default to first
+            const owner = attendees.length > 0 ? attendees[Math.floor(Math.random() * attendees.length)] : 'Directie';
+
             meetingDecisions.push({
                 id: `dev-dec-${globalDecisionIndex}`,
                 readable_id: `BES-26-${(globalDecisionIndex + 1).toString().padStart(3, '0')}`,
                 meetingId: meetingId,
-                text: decisionsPool[globalDecisionIndex % decisionsPool.length],
+                title: decTitle,
+                description: decDesc,
+                owners: [owner],
+                date: dateStr, // Synchronized with meeting date
                 topic: ['Financiën', 'HR', 'IT', 'Operations', 'Sales'][Math.floor(Math.random() * 5)]
             });
             globalDecisionIndex++;
@@ -368,7 +395,7 @@ export const db = {
         const meetingActions = [];
         const numActions = i % 2 === 0 ? 3 : 2; 
         for(let a=0; a < numActions; a++) {
-            if (globalActionIndex >= 25) break;
+            if (globalActionIndex >= 30) break;
             
             // Status Logic: 12 Open, 8 Pending, 5 Done
             let status = ActionStatus.OPEN;
@@ -389,6 +416,7 @@ export const db = {
             }
 
             const [title, desc] = actionsPool[globalActionIndex % actionsPool.length];
+            const owner = attendees.length > 0 ? attendees[Math.floor(Math.random() * attendees.length)] : 'Actiehouder';
 
             meetingActions.push({
                 id: `dev-act-${globalActionIndex}`,
@@ -396,7 +424,7 @@ export const db = {
                 meetingId: meetingId,
                 title: title,
                 description: desc,
-                owners: [attendees[Math.floor(Math.random() * attendees.length)]],
+                owners: [owner],
                 deadline: formatDate(deadlineDate),
                 status: status,
                 topic: ['Rondvraag', 'Projecten', 'Planning', 'Actielijst'][Math.floor(Math.random() * 4)],

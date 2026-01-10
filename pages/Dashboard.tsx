@@ -27,6 +27,9 @@ const DashboardPage: React.FC = () => {
   const [recentDecisions, setRecentDecisions] = useState<ExtendedDecision[]>([]);
   const [decisionSearch, setDecisionSearch] = useState('');
   const [selectedDecision, setSelectedDecision] = useState<ExtendedDecision | null>(null);
+  
+  // Animation state for progress circle
+  const [animatedCompletionRate, setAnimatedCompletionRate] = useState(0);
 
   useEffect(() => {
     const meetings = db.getMeetings();
@@ -68,10 +71,19 @@ const DashboardPage: React.FC = () => {
     ? Math.round((stats.completedActions / totalActions) * 100) 
     : 0;
 
+  // Trigger animation after mount/calculation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAnimatedCompletionRate(completionRate);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [completionRate]);
+
   const filteredDecisions = useMemo(() => {
     if (!decisionSearch) return recentDecisions.slice(0, 10);
     return recentDecisions.filter(d => 
-        d.text.toLowerCase().includes(decisionSearch.toLowerCase()) ||
+        (d.title && d.title.toLowerCase().includes(decisionSearch.toLowerCase())) ||
+        (d.description && d.description.toLowerCase().includes(decisionSearch.toLowerCase())) ||
         d.topic.toLowerCase().includes(decisionSearch.toLowerCase()) ||
         d.readable_id.toLowerCase().includes(decisionSearch.toLowerCase())
     ).slice(0, 10);
@@ -86,7 +98,7 @@ const DashboardPage: React.FC = () => {
     <button 
       onClick={onClick}
       className={`relative w-full text-left bg-white p-7 rounded-[2rem] border ${borderClass} shadow-sm min-h-[140px] h-full
-        hover:shadow-xl hover:shadow-emerald-500/10 transition-all duration-300 hover:-translate-y-1 
+        hover:shadow-lg hover:-translate-y-1 transition-all duration-300 ease-in-out
         hover:bg-slate-50 hover:ring-2 hover:ring-emerald-500/20 group cursor-pointer flex flex-col justify-between overflow-hidden`}
     >
       <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-slate-300">
@@ -167,7 +179,7 @@ const DashboardPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Chart Section - Takes up 2 columns */}
-        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 flex flex-col justify-between h-[420px]">
+        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 flex flex-col justify-between h-[420px] hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 ease-in-out">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-lg font-black text-slate-800 uppercase tracking-wide flex items-center gap-3">
               <TrendingUp size={20} className="text-blue-500" />
@@ -210,7 +222,7 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Progress Widget - Takes up 1 column (Replaces Efficiency Tip) */}
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 flex flex-col justify-between h-[420px] relative overflow-hidden group">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 flex flex-col justify-between h-[420px] relative overflow-hidden group hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 ease-in-out">
           <div className="flex items-center justify-between mb-6 relative z-10">
             <h3 className="text-lg font-black text-slate-800 uppercase tracking-wide flex items-center gap-3">
                <CheckCircle size={20} className="text-emerald-500" />
@@ -223,10 +235,21 @@ const DashboardPage: React.FC = () => {
              <div className="relative w-48 h-48 group-hover:scale-105 transition-transform duration-500">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                    <path className="text-slate-50" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="2.5" />
-                   <path className="text-emerald-500 drop-shadow-lg" strokeDasharray={`${completionRate}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                   <path 
+                     className="text-emerald-500 drop-shadow-lg transition-all duration-1000 ease-out" 
+                     strokeDasharray={`${animatedCompletionRate}, 100`} 
+                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
+                     fill="none" 
+                     stroke="currentColor" 
+                     strokeWidth="2.5" 
+                     strokeLinecap="round" 
+                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-900">
-                   <span className="text-5xl font-black tracking-tighter tabular-nums">{completionRate}%</span>
+                   <span className="text-5xl font-black tracking-tighter tabular-nums transition-all duration-1000">
+                       {/* Optionally animate number too, but direct bind is fine for now */}
+                       {completionRate}%
+                   </span>
                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">Voltooid</span>
                 </div>
              </div>
@@ -244,7 +267,7 @@ const DashboardPage: React.FC = () => {
       </div>
 
       {/* --- SMART DECISION REGISTRY WIDGET --- */}
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100">
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 ease-in-out">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <h3 className="text-lg font-black text-slate-800 uppercase tracking-wide flex items-center gap-3">
               <div className="bg-slate-100 p-2 rounded-xl text-slate-900">
@@ -288,7 +311,7 @@ const DashboardPage: React.FC = () => {
                          >
                             <div className="flex-1 pr-4 mb-2 md:mb-0">
                                 <p className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2">
-                                    {decision.text}
+                                    {decision.title || decision.description}
                                 </p>
                                 <div className="flex items-center gap-2 mt-2">
                                     <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
@@ -298,6 +321,14 @@ const DashboardPage: React.FC = () => {
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">
                                         {decision.topic}
                                     </span>
+                                    {decision.owners && decision.owners.length > 0 && (
+                                       <>
+                                         <span className="text-slate-300">•</span>
+                                         <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                                            {decision.owners[0]}
+                                         </span>
+                                       </>
+                                    )}
                                 </div>
                             </div>
 
@@ -312,7 +343,7 @@ const DashboardPage: React.FC = () => {
                                     </div>
                                 )}
                                 <div className="text-right min-w-[80px]">
-                                    <div className="text-xs font-black text-slate-900">{decision.meetingDate}</div>
+                                    <div className="text-xs font-black text-slate-900">{decision.date}</div>
                                 </div>
                                 <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                             </div>
@@ -347,11 +378,11 @@ const DashboardPage: React.FC = () => {
                              </span>
                         )}
                         <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded-lg flex items-center gap-1">
-                            <Calendar size={12} /> {selectedDecision.meetingDate}
+                            <Calendar size={12} /> {selectedDecision.date}
                         </span>
                     </div>
                     <h2 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight mb-2">
-                        Besluit
+                        {selectedDecision.title || "Besluit"}
                     </h2>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                         Onderwerp: {selectedDecision.topic}
@@ -364,9 +395,22 @@ const DashboardPage: React.FC = () => {
                             <Gavel size={14} /> Vastgelegd besluit
                         </label>
                         <p className="text-lg font-bold text-slate-800 leading-relaxed">
-                            {selectedDecision.text}
+                            {selectedDecision.description}
                         </p>
                     </div>
+
+                    {selectedDecision.owners && selectedDecision.owners.length > 0 && (
+                        <div>
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Eigenaar / Verantwoordelijke</label>
+                             <div className="flex flex-wrap gap-2">
+                                {selectedDecision.owners.map(owner => (
+                                    <span key={owner} className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm">
+                                        {owner}
+                                    </span>
+                                ))}
+                             </div>
+                        </div>
+                    )}
 
                     <div className="pt-6 border-t border-slate-100 flex items-center justify-between gap-4">
                          <button 

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { PlusCircle, ListTodo, Archive, LayoutDashboard, Settings, Menu, X, ShieldCheck } from 'lucide-react';
 import { KernLogo } from './KernLogo';
+import { db } from '../db';
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
@@ -40,13 +41,15 @@ export const Sidebar: React.FC = () => {
     { path: '/instellingen', label: 'Instellingen', icon: <Settings size={22} /> },
   ];
 
+  const activeIndex = menuItems.findIndex(item => item.path === location.pathname);
+
   const NavLink: React.FC<{ item: typeof menuItems[0] }> = ({ item }) => {
     const isActive = location.pathname === item.path;
     return (
       <Link
         to={item.path}
         onClick={() => setIsOpen(false)}
-        className={`flex items-center gap-4 px-6 py-4 rounded-2xl transition-all ${
+        className={`flex items-center gap-4 px-6 py-4 rounded-2xl transition-all h-14 relative z-10 ${
           isActive 
             ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' 
             : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
@@ -86,7 +89,18 @@ export const Sidebar: React.FC = () => {
           <p className="text-[10px] text-slate-400 font-black tracking-[0.3em] uppercase opacity-60 pl-1">De essentie van overleg</p>
         </div>
         
-        <nav className="px-6 space-y-3 mt-4">
+        <nav className="px-6 space-y-3 mt-4 relative">
+          {/* Sliding Indicator */}
+          {activeIndex !== -1 && (
+             <div 
+               className="absolute left-0 w-1.5 h-10 bg-emerald-500 rounded-r-full transition-all duration-300 ease-in-out"
+               style={{ 
+                 top: `calc(${activeIndex} * (3.5rem + 0.75rem) + 0.5rem)` 
+                 // 3.5rem (h-14) + 0.75rem (space-y-3) per item. +0.5rem to center within padding vertical.
+               }}
+             />
+          )}
+
           {menuItems.map((item) => (
             <NavLink key={item.path} item={item} />
           ))}
@@ -94,10 +108,16 @@ export const Sidebar: React.FC = () => {
 
         <div className="absolute bottom-10 left-10 right-10">
           <div className="p-6 bg-slate-50 rounded-3xl flex items-center gap-3">
-            <ShieldCheck size={24} className="text-emerald-500" />
+            <div className="relative">
+               <ShieldCheck size={24} className="text-emerald-500 relative z-10" />
+               <div className="absolute top-0 right-0 w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)] z-20"></div>
+            </div>
             <div>
               <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Systeemstatus</p>
               <p className="text-xs font-black text-slate-900 uppercase">Operationeel</p>
+              <p className="text-[9px] font-bold text-slate-400 mt-1 truncate max-w-[120px]" title={db.getCurrentWorkspace()}>
+                 WS: {db.getCurrentWorkspace()}
+              </p>
             </div>
           </div>
         </div>

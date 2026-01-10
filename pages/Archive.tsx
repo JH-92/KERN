@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { db } from '../db';
-import { Meeting, Note } from '../types';
-import { Calendar, Users, FileEdit, Trash2, Save, AlertCircle, ClipboardList, CheckCircle, Printer, X, Download } from 'lucide-react';
+import { Meeting, Note, Action, Decision, ActionStatus, MeetingType } from '../types';
+import { Calendar, Users, FileEdit, Trash2, Save, AlertCircle, ClipboardList, CheckCircle, Printer, X, Download, Briefcase, Layout, Clock, Info, User, Gavel, Search, ArrowRight } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { PrintableMeeting } from '../components/PrintableMeeting';
 
@@ -15,6 +15,13 @@ const ArchivePage: React.FC = () => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  
+  // Search State
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Detail Modal State
+  const [selectedItem, setSelectedItem] = useState<Action | Decision | null>(null);
+  const [itemType, setItemType] = useState<'action' | 'decision' | null>(null);
 
   useEffect(() => {
     loadMeetings();
@@ -83,12 +90,14 @@ const ArchivePage: React.FC = () => {
     db.removeAction(selectedMeetingId, actionId);
     loadMeetings();
     showToast("Actie verwijderd.");
+    if (selectedItem?.id === actionId) closeModal();
   };
 
   const handleDeleteDecision = (decisionId: string) => {
     db.removeDecision(selectedMeetingId, decisionId);
     loadMeetings();
     showToast("Besluit verwijderd.");
+    if (selectedItem?.id === decisionId) closeModal();
   };
 
   const handlePrint = () => {
@@ -112,32 +121,81 @@ const ArchivePage: React.FC = () => {
     showToast("PDF wordt gegenereerd...");
   };
 
+  const openItem = (item: Action | Decision, type: 'action' | 'decision') => {
+    setSelectedItem(item);
+    setItemType(type);
+  };
+
+  const closeModal = () => {
+    setSelectedItem(null);
+    setItemType(null);
+  };
+
   const selectedMeeting = meetings.find(m => m.id === selectedMeetingId);
+
+  // Search Logic
+  const searchResults = useMemo(() => {
+    if (!searchTerm.trim()) return null;
+    const lowerQ = searchTerm.toLowerCase();
+    
+    // Flatten all data
+    const allActions = meetings.flatMap(m => m.actions.map(a => ({...a, originDate: m.date, originType: m.type})));
+    const allDecisions = meetings.flatMap(m => m.decisions.map(d => ({...d, originDate: m.date, originType: m.type})));
+    
+    return {
+        actions: allActions.filter(a => 
+            (a.title && a.title.toLowerCase().includes(lowerQ)) || 
+            (a.description && a.description.toLowerCase().includes(lowerQ)) ||
+            (a.readable_id && a.readable_id.toLowerCase().includes(lowerQ)) ||
+            (a.owners && a.owners.some(o => o.toLowerCase().includes(lowerQ)))
+        ),
+        decisions: allDecisions.filter(d => 
+            (d.title && d.title.toLowerCase().includes(lowerQ)) || 
+            (d.description && d.description.toLowerCase().includes(lowerQ)) ||
+            (d.readable_id && d.readable_id.toLowerCase().includes(lowerQ)) ||
+            (d.owners && d.owners.some(o => o.toLowerCase().includes(lowerQ)))
+        )
+    };
+  }, [meetings, searchTerm]);
 
   return (
     <div className="pb-32 animate-in fade-in slide-in-from-bottom-6 duration-700 relative">
       <PageHeader title="Archief & historie" subtitle="Raadpleeg en corrigeer vastgelegde notulen.">
-        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-          <div className="w-full md:w-80">
-            <select 
-              value={selectedMeetingId}
-              onChange={(e) => handleSelectMeeting(e.target.value)}
-              className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-xl focus:ring-4 focus:ring-blue-100 outline-none transition-all font-black text-slate-800 appearance-none cursor-pointer"
-            >
-              {meetings.length === 0 ? (
-                <option disabled>Geen historie beschikbaar</option>
-              ) : (
-                meetings.map(m => (
-                  <option key={m.id} value={m.id}>{m.date} — {m.type} (Week {m.weekNumber})</option>
-                ))
-              )}
-            </select>
+        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto items-center">
+          {/* Search Bar */}
+          <div className="relative w-full md:w-64 order-2 md:order-1">
+             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+             <input 
+                 type="text"
+                 placeholder="Zoek in archief..."
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+                 className="w-full pl-10 pr-4 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all font-bold text-slate-700 text-sm"
+             />
           </div>
+
+          {!searchTerm && (
+            <div className="w-full md:w-80 order-1 md:order-2">
+                <select 
+                value={selectedMeetingId}
+                onChange={(e) => handleSelectMeeting(e.target.value)}
+                className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-xl focus:ring-4 focus:ring-blue-100 outline-none transition-all font-black text-slate-800 appearance-none cursor-pointer"
+                >
+                {meetings.length === 0 ? (
+                    <option disabled>Geen historie beschikbaar</option>
+                ) : (
+                    meetings.map(m => (
+                    <option key={m.id} value={m.id}>{m.date} — {m.type} (Week {m.weekNumber})</option>
+                    ))
+                )}
+                </select>
+            </div>
+          )}
           
-          {selectedMeeting && (
+          {selectedMeeting && !searchTerm && (
             <button
               onClick={handlePrint}
-              className="px-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 transition-all flex items-center justify-center gap-2 group cursor-pointer"
+              className="order-3 px-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 transition-all flex items-center justify-center gap-2 group cursor-pointer"
               title="Download als pdf"
             >
               <Printer size={20} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
@@ -147,7 +205,93 @@ const ArchivePage: React.FC = () => {
         </div>
       </PageHeader>
 
-      {selectedMeeting ? (
+      {searchTerm ? (
+        // --- SEARCH RESULTS VIEW ---
+        <div className="space-y-12 animate-in fade-in duration-300">
+           <div className="bg-slate-900 text-white p-8 rounded-[2rem] flex items-center justify-between">
+              <div>
+                  <h3 className="text-xl font-black">Zoekresultaten voor "{searchTerm}"</h3>
+                  <p className="text-slate-400 text-sm mt-1">
+                      {searchResults ? searchResults.actions.length + searchResults.decisions.length : 0} resultaten gevonden
+                  </p>
+              </div>
+              <button onClick={() => setSearchTerm('')} className="bg-white/10 hover:bg-white/20 p-3 rounded-xl transition-colors">
+                  <X size={20} />
+              </button>
+           </div>
+
+           {/* ACTIONS RESULTS */}
+           {searchResults && searchResults.actions.length > 0 && (
+               <div className="space-y-4">
+                   <h4 className="text-sm font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 px-2">
+                      <ClipboardList size={16} /> Gevonden Acties
+                   </h4>
+                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                       {searchResults.actions.map(a => (
+                           <div 
+                               key={a.id} 
+                               onClick={() => openItem(a, 'action')}
+                               className="group flex flex-col sm:flex-row sm:items-center justify-between p-6 bg-white rounded-[2rem] border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer hover:-translate-y-1 hover:shadow-lg border-l-4 border-l-transparent hover:border-l-blue-500"
+                           >
+                               <div className="space-y-2">
+                                   <div className="flex items-center gap-2">
+                                       <span className="text-[10px] font-black text-slate-300 bg-slate-100 px-2 py-0.5 rounded-md">{a.readable_id}</span>
+                                       <span className="text-[10px] font-bold text-slate-400 uppercase">{(a as any).originDate}</span>
+                                   </div>
+                                   <div className="text-sm font-bold text-slate-900 group-hover:text-blue-700 transition-colors">{a.title}</div>
+                                   <div className="text-xs text-slate-500 line-clamp-1">{a.description}</div>
+                               </div>
+                               <div className="mt-4 sm:mt-0 sm:text-right">
+                                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Deadline</div>
+                                   <div className="font-bold text-slate-700">{a.deadline}</div>
+                               </div>
+                           </div>
+                       ))}
+                   </div>
+               </div>
+           )}
+
+           {/* DECISIONS RESULTS */}
+           {searchResults && searchResults.decisions.length > 0 && (
+               <div className="space-y-4">
+                   <h4 className="text-sm font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2 px-2">
+                      <Gavel size={16} /> Gevonden Besluiten
+                   </h4>
+                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                       {searchResults.decisions.map(d => (
+                           <div 
+                               key={d.id} 
+                               onClick={() => openItem(d, 'decision')}
+                               className="group flex flex-col sm:flex-row sm:items-center justify-between p-6 bg-white rounded-[2rem] border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer hover:-translate-y-1 hover:shadow-lg border-l-4 border-l-transparent hover:border-l-emerald-500"
+                           >
+                               <div className="space-y-2">
+                                   <div className="flex items-center gap-2">
+                                       <span className="text-[10px] font-black text-slate-300 bg-slate-100 px-2 py-0.5 rounded-md">{d.readable_id}</span>
+                                       <span className="text-[10px] font-bold text-slate-400 uppercase">{(d as any).originDate}</span>
+                                   </div>
+                                   <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">{d.title}</div>
+                                   <div className="text-xs text-slate-500 line-clamp-1">{d.description}</div>
+                               </div>
+                               <div className="mt-4 sm:mt-0 sm:text-right">
+                                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Eigenaar</div>
+                                   <div className="font-bold text-slate-700">{d.owners && d.owners.length > 0 ? d.owners[0] : '-'}</div>
+                               </div>
+                           </div>
+                       ))}
+                   </div>
+               </div>
+           )}
+           
+           {/* NO RESULTS */}
+           {searchResults && searchResults.actions.length === 0 && searchResults.decisions.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 opacity-50">
+                  <Search size={48} className="text-slate-300 mb-4" />
+                  <p className="text-lg font-black text-slate-400 uppercase tracking-widest">Geen resultaten</p>
+              </div>
+           )}
+        </div>
+      ) : selectedMeeting ? (
+        // --- STANDARD VIEW ---
         <div className="space-y-12">
           {/* Executive Summary Info */}
           <section className="bg-slate-900 p-12 rounded-[3rem] text-white flex flex-wrap gap-16 shadow-2xl relative overflow-hidden">
@@ -204,7 +348,7 @@ const ArchivePage: React.FC = () => {
                         rows={5}
                         value={editNotes[note.agendaItem] || ''}
                         onChange={(e) => setEditNotes(prev => ({ ...prev, [note.agendaItem]: e.target.value }))}
-                        className="w-full px-7 py-5 bg-slate-50 border border-slate-200 rounded-3xl focus:bg-white focus:border-slate-900 outline-none transition-all resize-none font-medium leading-relaxed"
+                        className="w-full px-7 py-5 bg-slate-50 border border-slate-200 rounded-3xl focus:bg-white focus:border-slate-900 outline-none transition-all resize-none font-medium text-lg text-slate-700 leading-relaxed"
                         placeholder="Geen notulen vastgelegd voor dit onderdeel..."
                       />
                     </div>
@@ -218,14 +362,23 @@ const ArchivePage: React.FC = () => {
                         {itemActions.length === 0 ? <p className="text-xs text-slate-300 italic px-2">Geen acties vastgelegd.</p> : (
                           <div className="space-y-3">
                             {itemActions.map(a => (
-                              <div key={a.id} className="group flex items-center justify-between p-4 bg-blue-50/30 rounded-2xl border border-blue-100 hover:bg-blue-50 transition-colors">
+                              <div 
+                                key={a.id} 
+                                onClick={() => openItem(a, 'action')}
+                                className="group flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer hover:-translate-y-1 hover:shadow-md border-l-4 border-l-transparent hover:border-l-blue-500"
+                              >
                                 <div className="space-y-1">
-                                  <div className="text-xs font-black text-blue-900">{a.title || a.description}</div>
-                                  <div className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">
+                                  <div className="text-xs font-black text-slate-800 group-hover:text-blue-700 transition-colors line-clamp-1">{a.title || a.description}</div>
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
                                     {a.owners && a.owners.length > 0 ? a.owners.join(', ') : 'Geen eigenaar'} • {a.deadline}
                                   </div>
                                 </div>
-                                <button onClick={() => handleDeleteAction(a.id)} className="text-red-300 hover:text-red-600 transition-colors p-2"><Trash2 size={18}/></button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteAction(a.id); }} 
+                                    className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                                >
+                                    <Trash2 size={16}/>
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -239,9 +392,23 @@ const ArchivePage: React.FC = () => {
                         {itemDecisions.length === 0 ? <p className="text-xs text-slate-300 italic px-2">Geen besluiten vastgelegd.</p> : (
                           <div className="space-y-3">
                             {itemDecisions.map(d => (
-                              <div key={d.id} className="group flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl border border-emerald-100 hover:bg-emerald-50 transition-colors">
-                                <div className="text-xs font-black text-emerald-900 flex-1 pr-4">{d.text}</div>
-                                <button onClick={() => handleDeleteDecision(d.id)} className="text-red-300 hover:text-red-600 transition-colors p-2"><Trash2 size={18}/></button>
+                              <div 
+                                key={d.id} 
+                                onClick={() => openItem(d, 'decision')}
+                                className="group flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer hover:-translate-y-1 hover:shadow-md border-l-4 border-l-transparent hover:border-l-emerald-500"
+                              >
+                                <div className="flex-1 pr-4 space-y-1">
+                                    <div className="text-xs font-black text-slate-800 group-hover:text-emerald-700 transition-colors line-clamp-1">{d.title || d.description}</div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                       {d.owners && d.owners.length > 0 ? d.owners.join(', ') : 'Directie'} • {d.date}
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteDecision(d.id); }} 
+                                    className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                                >
+                                    <Trash2 size={16}/>
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -259,6 +426,109 @@ const ArchivePage: React.FC = () => {
           <AlertCircle size={80} className="mb-8 opacity-10" />
           <p className="text-2xl font-black tracking-tight text-slate-300 uppercase">Geen historie</p>
           <p className="text-sm opacity-50 mt-2">U heeft nog geen vergaderingen opgeslagen in de database.</p>
+        </div>
+      )}
+
+      {/* DETAIL MODAL */}
+      {selectedItem && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={closeModal}></div>
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative z-10 p-8 md:p-12 animate-in zoom-in-95 duration-200">
+            <button onClick={closeModal} className="absolute top-8 right-8 text-slate-300 hover:text-slate-600 transition-colors">
+              <X size={24} />
+            </button>
+
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="font-mono text-xs font-black text-slate-300 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                  {selectedItem.readable_id}
+                </span>
+                {itemType === 'action' ? (
+                     <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-lg flex items-center gap-1">
+                        <Clock size={12} /> Actie
+                     </span>
+                ) : (
+                     <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg flex items-center gap-1">
+                        <Gavel size={12} /> Besluit
+                     </span>
+                )}
+                <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded-lg flex items-center gap-1">
+                   <Briefcase size={12} /> {selectedItem.topic}
+                </span>
+              </div>
+              <h2 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight mb-2">
+                {selectedItem.title || (itemType === 'action' ? 'Actiepunt' : 'Besluit')}
+              </h2>
+            </div>
+
+            <div className="space-y-8">
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 shadow-inner">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3 flex items-center gap-2">
+                   <Info size={14} /> Volledige omschrijving
+                </label>
+                <p className="text-base font-medium text-slate-800 leading-relaxed whitespace-pre-wrap">
+                   {selectedItem.description}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                 <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 flex items-center gap-2">
+                        <User size={14} /> Eigenaar / Verantwoordelijke
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedItem.owners && selectedItem.owners.length > 0 ? (
+                        selectedItem.owners.map(owner => (
+                          <span key={owner} className="bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 shadow-sm">
+                            {owner}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-400 text-sm italic">Niemand toegewezen</span>
+                      )}
+                    </div>
+                 </div>
+                 <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 flex items-center gap-2">
+                        <Calendar size={14} /> {itemType === 'action' ? 'Deadline' : 'Datum vastlegging'}
+                    </label>
+                    <div className="text-sm font-black text-slate-800 bg-white px-3 py-2 rounded-xl border border-slate-200 inline-block shadow-sm">
+                       {(selectedItem as any).deadline || (selectedItem as any).date}
+                    </div>
+                 </div>
+              </div>
+
+              {itemType === 'action' && (
+                 <div className="pt-4 border-t border-slate-100">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Huidige Status</label>
+                    <div className="inline-block">
+                        {(selectedItem as Action).status === ActionStatus.DONE ? (
+                           <span className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl font-black text-xs uppercase flex items-center gap-2">
+                               <CheckCircle size={14} /> Afgehandeld
+                           </span>
+                        ) : (selectedItem as Action).status === ActionStatus.PROGRESS ? (
+                           <span className="px-4 py-2 bg-amber-100 text-amber-700 rounded-xl font-black text-xs uppercase flex items-center gap-2">
+                               <Clock size={14} /> In behandeling
+                           </span>
+                        ) : (
+                           <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-xl font-black text-xs uppercase flex items-center gap-2">
+                               <AlertCircle size={14} /> Openstaand
+                           </span>
+                        )}
+                    </div>
+                 </div>
+              )}
+
+              <div className="pt-6 border-t border-slate-100 flex justify-end">
+                <button 
+                  onClick={closeModal}
+                  className="bg-slate-900 text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-colors"
+                >
+                  Sluiten
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
