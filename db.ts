@@ -128,9 +128,11 @@ export const db = {
     let presenceList: PresenceRecord[] = raw ? JSON.parse(raw) : [];
     
     const now = Date.now();
-    const TWO_MINUTES = 2 * 60 * 1000;
+    // GHOST HUNTER: Remove sessions older than 45 seconds
+    const GHOST_TIMEOUT = 45 * 1000; 
 
-    presenceList = presenceList.filter(p => (now - p.lastActive) < TWO_MINUTES);
+    // Clean up ghosts
+    presenceList = presenceList.filter(p => (now - p.lastActive) < GHOST_TIMEOUT);
 
     const existingIndex = presenceList.findIndex(p => p.sessionId === sessionId);
     if (existingIndex >= 0) {
@@ -149,10 +151,15 @@ export const db = {
     
     const presenceList: PresenceRecord[] = JSON.parse(raw);
     const now = Date.now();
-    const SIXTY_SECONDS = 60 * 1000;
+    const TIMEOUT = 45 * 1000; // Match the ghost timeout
     
-    const active = presenceList.filter(p => (now - p.lastActive) < SIXTY_SECONDS);
-    return Math.max(1, active.length);
+    // Strict count of active, non-ghost sessions
+    const active = presenceList.filter(p => (now - p.lastActive) < TIMEOUT);
+    
+    // Ensure we count unique sessions only
+    const uniqueSessions = new Set(active.map(p => p.sessionId));
+    
+    return Math.max(1, uniqueSessions.size);
   },
 
   // --- TIMER MANAGEMENT (PERSISTENT) ---

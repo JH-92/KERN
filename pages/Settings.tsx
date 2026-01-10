@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { Employee, ActionStatus, MeetingType } from '../types';
-import { UserPlus, Trash2, Edit3, Search, Users, UploadCloud, CheckCircle, Database, AlertTriangle, ToggleLeft, ToggleRight, Bomb, Share2, FileSpreadsheet, Zap, ClipboardList, Gavel } from 'lucide-react';
+import { UserPlus, Trash2, Edit3, Search, Users, UploadCloud, CheckCircle, Database, AlertTriangle, ToggleLeft, ToggleRight, Bomb, Share2, FileSpreadsheet, Zap, ClipboardList, Gavel, Lock, Unlock, Check, X } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { CustomDatePicker } from '../components/CustomDatePicker';
 import { KernLogo } from '../components/KernLogo';
@@ -22,6 +22,11 @@ const SettingsPage: React.FC = () => {
   const [devMode, setDevMode] = useState(false);
   const [directorMode, setDirectorMode] = useState(false);
   const [flashAnimation, setFlashAnimation] = useState(false);
+  
+  // Security States
+  const [isWorkspaceLocked, setIsWorkspaceLocked] = useState(true);
+  const [showUnlockInput, setShowUnlockInput] = useState(false);
+  const [unlockCode, setUnlockCode] = useState('');
 
   // Forms
   const [currentEmployee, setCurrentEmployee] = useState<Partial<Employee>>({ name: '', role: '', email: '' });
@@ -42,10 +47,11 @@ const SettingsPage: React.FC = () => {
     }
   }, []);
 
-  // Escape key handler for all modals
+  // Escape key handler for all modals and unlock input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
+            if (showUnlockInput) { setShowUnlockInput(false); setUnlockCode(''); }
             if (showAddModal) closeModal();
             if (showBatchModal) setShowBatchModal(false);
             if (showActionImport) setShowActionImport(false);
@@ -56,7 +62,7 @@ const SettingsPage: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showAddModal, showBatchModal, showActionImport, showDecisionImport, showResetConfirm, showInjectConfirm]);
+  }, [showAddModal, showBatchModal, showActionImport, showDecisionImport, showResetConfirm, showInjectConfirm, showUnlockInput]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -81,6 +87,27 @@ const SettingsPage: React.FC = () => {
   };
 
   // --- HANDLERS ---
+  const handleToggleLock = () => {
+    if (isWorkspaceLocked) {
+        setShowUnlockInput(true);
+    } else {
+        setIsWorkspaceLocked(true);
+        showToast("Workspace vergrendeld.");
+    }
+  };
+
+  const handleUnlockSubmit = () => {
+    if (unlockCode === '0181') {
+        setIsWorkspaceLocked(false);
+        setShowUnlockInput(false);
+        setUnlockCode('');
+        showToast("Workspace ontgrendeld.");
+    } else {
+        showToast("Onjuiste toegangscode.");
+        setUnlockCode('');
+    }
+  };
+
   const handleWorkspaceUpdate = () => { 
     if (workspaceInput === db.getCurrentWorkspace()) return; 
     const newId = db.setWorkspace(workspaceInput); 
@@ -250,19 +277,62 @@ const SettingsPage: React.FC = () => {
                  
                  <div className="w-full md:w-auto bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-3 min-w-[300px]">
                      <div className="flex items-center justify-between">
-                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Workspace ID</span>
+                         <button 
+                            onClick={handleToggleLock}
+                            className="flex items-center gap-2 group cursor-pointer hover:bg-slate-100 p-1 -ml-1 rounded-lg transition-all"
+                            title={isWorkspaceLocked ? "Klik om te wijzigen" : "Klik om te vergrendelen"}
+                         >
+                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-600">Workspace ID</span>
+                             {isWorkspaceLocked ? (
+                                <Lock size={12} className="text-slate-400 group-hover:text-slate-600" />
+                             ) : (
+                                <Unlock size={12} className="text-emerald-500 animate-pulse" />
+                             )}
+                         </button>
                          <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600">
                              <CheckCircle size={12} /> Actief
                          </span>
                      </div>
+
+                     {/* Unlock UI Overlay */}
+                     {showUnlockInput && (
+                        <div className="flex items-center gap-2 mb-1 animate-in fade-in slide-in-from-left-2">
+                            <input
+                                autoFocus
+                                type="password"
+                                value={unlockCode}
+                                onChange={(e) => setUnlockCode(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleUnlockSubmit();
+                                    if (e.key === 'Escape') { setShowUnlockInput(false); setUnlockCode(''); }
+                                }}
+                                placeholder="Voer code in..."
+                                className="flex-1 px-3 py-1.5 text-xs font-bold border-2 border-emerald-400 rounded-lg outline-none bg-white text-emerald-700 placeholder:text-emerald-300/50"
+                            />
+                            <button onClick={handleUnlockSubmit} className="bg-emerald-500 hover:bg-emerald-600 text-white p-1.5 rounded-lg shadow-sm transition-colors">
+                                <Check size={14} strokeWidth={3} />
+                            </button>
+                            <button onClick={() => { setShowUnlockInput(false); setUnlockCode(''); }} className="text-slate-400 hover:text-slate-600 p-1">
+                                <X size={14} />
+                            </button>
+                        </div>
+                     )}
+
                      <div className="flex items-center gap-2">
                          <input 
                             type="text"
                             value={workspaceInput}
+                            readOnly={isWorkspaceLocked}
+                            onClick={() => isWorkspaceLocked && setShowUnlockInput(true)}
                             onChange={(e) => setWorkspaceInput(e.target.value)}
                             onBlur={handleWorkspaceUpdate}
                             onKeyDown={(e) => e.key === 'Enter' && handleWorkspaceUpdate()}
-                            className="flex-1 text-base font-mono font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-md border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                            className={`flex-1 text-base font-mono font-bold text-slate-800 px-3 py-2 rounded-md border border-slate-200 outline-none transition-all ${
+                                isWorkspaceLocked 
+                                ? 'bg-slate-100 cursor-pointer text-slate-500 hover:bg-slate-200' 
+                                : 'bg-white focus:ring-2 focus:ring-emerald-500'
+                            }`}
+                            title={isWorkspaceLocked ? "Klik om te ontgrendelen" : "Workspace ID"}
                          />
                          <button 
                             onClick={handleCopyTeamsLink} 

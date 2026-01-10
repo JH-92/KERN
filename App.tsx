@@ -176,14 +176,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const sessionId = db.getSessionId();
+    // Initial heartbeat
     db.sendHeartbeat(sessionId);
-    const pollInterval = isDirectorMode ? 2000 : 30000; 
+    
+    // Heartbeat: Every 15 seconds as requested
+    // This updates the 'lastSeen' timestamp in the DB
+    const pollInterval = 15000; 
     const interval = setInterval(() => {
-      window.dispatchEvent(new Event('kern-data-update'));
       db.sendHeartbeat(sessionId);
     }, pollInterval);
+    
     return () => clearInterval(interval);
-  }, [isDirectorMode]);
+  }, []); // Stable dependency array
 
   return (
     <HashRouter>
