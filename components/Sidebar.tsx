@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { PlusCircle, ListTodo, Archive, LayoutDashboard, Settings, Menu, X, ShieldCheck, ChevronLeft, ChevronRight, Activity, Hourglass, Users, Zap, Wind } from 'lucide-react';
+import { PlusCircle, ListTodo, Archive, LayoutDashboard, Settings, Menu, X, ShieldCheck, ChevronLeft, ChevronRight, Activity, Hourglass, Users, Zap, Wind, Navigation, HelpCircle } from 'lucide-react';
 import { KernLogo } from './KernLogo';
+import { HelpModal } from './HelpModal';
 import { db } from '../db';
 import { ActionStatus, VotingState } from '../types';
 
@@ -31,69 +32,122 @@ const playBlip = () => {
     }
 };
 
-const WindSpeedMeter: React.FC = () => {
-    const [speed, setSpeed] = useState(0);
-    const lastPos = useRef({ x: 0, y: 0 });
-    const lastTime = useRef(Date.now());
-
-    useEffect(() => {
-        const handleMove = (e: MouseEvent) => {
-            const now = Date.now();
-            const dt = now - lastTime.current;
-            if (dt > 100) {
-                const dx = e.clientX - lastPos.current.x;
-                const dy = e.clientY - lastPos.current.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                // Fake mapping to Knots
-                setSpeed(Math.min(45, Math.floor(dist / 5)));
-                lastPos.current = { x: e.clientX, y: e.clientY };
-                lastTime.current = now;
-            }
-        };
-        window.addEventListener('mousemove', handleMove);
-        return () => window.removeEventListener('mousemove', handleMove);
-    }, []);
-
-    return (
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-cyan-100">
-            <span className="text-[9px] font-bold text-slate-400 tracking-widest uppercase">Wind Speed</span>
-            <div className="flex items-center gap-2 font-mono text-cyan-600 text-xs">
-                <Wind size={12} className="opacity-80" />
-                <span className="font-bold tabular-nums">{speed} KTS</span>
-            </div>
-        </div>
-    );
-};
-
-const FoilBalanceMeter: React.FC = () => {
+// --- DIRECTOR FLIGHT DECK WIDGET (SLOW-TIDE EDITION) ---
+const DirectorFlightDeck: React.FC = () => {
+    // Visual State
     const [balance, setBalance] = useState(50); // 0 to 100
+    const [windSpeed, setWindSpeed] = useState(12);
+    const [deviation, setDeviation] = useState(0);
+    const [isHoveringState, setIsHoveringState] = useState(false); // For UI feedback
+    
+    // Physics Refs
+    const currentOffsetRef = useRef(0);
+    const timeRef = useRef(0);
+    const frameRef = useRef<number | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const handleMove = (e: MouseEvent) => {
-            const width = window.innerWidth;
-            const pct = Math.max(0, Math.min(100, (e.clientX / width) * 100));
-            setBalance(pct);
+        const animate = () => {
+            // Slow time increment for "breathing" motion
+            timeRef.current += 0.008; 
+
+            // Calculate Wind Speed (Amplitude) - Slowly varies between 8 and 16 KT
+            const currentWind = 12 + Math.sin(timeRef.current * 0.3) * 4;
+            setWindSpeed(currentWind);
+
+            // Target Offset calculation
+            // Sine wave oscillation based on time
+            // Amplitude scaled by wind: higher wind = wider swing
+            // Range approx +/- 15%
+            let targetOffset = Math.sin(timeRef.current) * (currentWind * 1.2);
+
+            // Interaction Override: Hover fixes to center
+            if (isHoveringState) {
+                targetOffset = 0;
+            }
+
+            // Smooth Interpolation (Lerp)
+            // If hovering, snap faster (0.1), otherwise drift slowly (0.02)
+            const lerpFactor = isHoveringState ? 0.1 : 0.02;
+            currentOffsetRef.current += (targetOffset - currentOffsetRef.current) * lerpFactor;
+
+            // Update State
+            setBalance(50 + currentOffsetRef.current);
+            setDeviation(Math.abs(currentOffsetRef.current * 0.4)); // Map offset to "degrees"
+
+            frameRef.current = requestAnimationFrame(animate);
         };
-        window.addEventListener('mousemove', handleMove);
-        return () => window.removeEventListener('mousemove', handleMove);
-    }, []);
+
+        frameRef.current = requestAnimationFrame(animate);
+        return () => {
+            if (frameRef.current) cancelAnimationFrame(frameRef.current);
+        };
+    }, [isHoveringState]);
 
     return (
-        <div className="w-full py-1">
-            <div className="flex justify-between text-[10px] text-slate-400 font-mono mb-2 px-1">
-                <span>PORT</span>
-                <span>STBD</span>
+        <div 
+            className="mb-4 bg-cyan-50/60 backdrop-blur-md border border-cyan-100 rounded-2xl p-5 shadow-sm flex flex-col w-full relative overflow-hidden group transition-all"
+            onMouseEnter={() => setIsHoveringState(true)}
+            onMouseLeave={() => setIsHoveringState(false)}
+        >
+            {/* Subtle flow background */}
+             <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(6,182,212,0.03),transparent)] animate-pulse pointer-events-none" style={{ animationDuration: '4s' }}></div>
+            
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3 relative z-10">
+                <span className="text-[10px] font-black uppercase text-cyan-700 tracking-widest flex items-center gap-1.5">
+                    <Activity size={12} /> Foil Balance
+                </span>
+                <div className="flex items-center gap-2">
+                     <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${isHoveringState ? 'text-cyan-600' : 'text-slate-400'}`}>
+                        {isHoveringState ? 'STABILIZED' : 'AUTO-FLOW'}
+                     </span>
+                     <span className={`w-1.5 h-1.5 rounded-full transition-all duration-700 ${
+                         isHoveringState 
+                         ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] scale-125' 
+                         : 'bg-emerald-400/50'
+                     }`}></span>
+                </div>
             </div>
-            {/* Gauge Track */}
-            <div className="w-full h-1.5 bg-slate-200 rounded-full relative shadow-inner">
-                {/* Center marker */}
-                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-300 -ml-px z-0"></div>
-                
-                {/* Indicator */}
-                <div 
-                    className="absolute top-1/2 -mt-1.5 w-3 h-3 bg-cyan-500 rounded-full border border-white shadow-sm transition-all duration-300 ease-out -ml-1.5 z-10"
-                    style={{ left: `${balance}%` }}
-                />
+            
+            {/* The Gauge */}
+            <div className="w-full relative z-10 py-2" ref={containerRef}>
+                <div className="flex justify-between text-[9px] text-slate-400 font-mono mb-1 px-1 opacity-70">
+                    <span>PORT</span>
+                    <span>STBD</span>
+                </div>
+                {/* Gauge Track */}
+                <div className="w-full h-2 bg-slate-200/50 rounded-full relative shadow-inner overflow-hidden border border-white/50">
+                    {/* Center marker */}
+                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-cyan-900/10 -ml-px z-0"></div>
+                    
+                    {/* Gradient Flow Bar - Visualizing the "current" */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-100/30 to-transparent opacity-50"></div>
+
+                    {/* Indicator */}
+                    <div 
+                        className={`absolute top-0 bottom-0 w-1.5 bg-cyan-500 rounded-full transition-all duration-75 ease-out -ml-0.5 z-10 ${
+                            isHoveringState ? 'shadow-[0_0_12px_rgba(6,182,212,0.8)] bg-cyan-400' : 'shadow-[0_0_4px_rgba(6,182,212,0.3)]'
+                        }`}
+                        style={{ left: `${balance}%` }}
+                    />
+                </div>
+            </div>
+
+            {/* Footer Stats */}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-cyan-100/50 relative z-10">
+                <span className="text-[9px] font-bold text-slate-400 tracking-widest uppercase flex items-center gap-1 transition-colors duration-500">
+                    <Navigation size={10} /> Deviation
+                </span>
+                <div className="flex items-center gap-3 font-mono text-[10px]">
+                    <div className={`flex items-center gap-1 font-bold transition-colors text-slate-500`}>
+                        <span className="tabular-nums">{deviation.toFixed(1)}°</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-cyan-600 font-bold opacity-80">
+                        <Wind size={10} />
+                        <span className="tabular-nums">{windSpeed.toFixed(0)} KT</span>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -104,6 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse })
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
   const [isDirectorMode, setIsDirectorMode] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Stats
   const [votingState, setVotingState] = useState<VotingState>({ isActive: false, topic: '', votes: [], startTime: 0 });
@@ -193,6 +248,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse })
 
   return (
     <>
+      <style>{`
+        @keyframes vibrate {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+        .animate-vibrate {
+            animation: vibrate 0.3s linear infinite;
+        }
+      `}</style>
       <button 
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         className={`lg:hidden fixed top-6 right-6 z-[60] p-4 bg-slate-900 text-white rounded-full shadow-2xl transition-all duration-300`}
@@ -256,26 +324,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse })
         <div className="p-4 transition-all duration-300 space-y-4 relative z-10">
           <div className={`transition-all duration-300 w-full ${isCollapsed ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100 h-auto'}`}>
              
-             {/* WIDGET AREA: Show ONLY Foil Balance if Director Mode. Otherwise show NOTHING. */}
+             {/* WIDGET AREA: Director Flight Deck */}
              {isDirectorMode && (
-                 <div className="mb-4 bg-cyan-50/60 backdrop-blur-md border border-cyan-100 rounded-2xl p-5 shadow-sm flex flex-col w-full relative overflow-hidden group">
-                    {/* Subtle grid effect background */}
-                    <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none"></div>
-                    
-                    <div className="flex items-center justify-between mb-3 relative z-10">
-                        <span className="text-[10px] font-black uppercase text-cyan-700 tracking-widest flex items-center gap-1.5">
-                           <Activity size={12} /> Foil Balance
-                        </span>
-                        <div className="flex items-center">
-                             <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
-                        </div>
-                    </div>
-                    
-                    <div className="w-full relative z-10">
-                        <FoilBalanceMeter />
-                        <WindSpeedMeter />
-                    </div>
-                 </div>
+                 <DirectorFlightDeck />
              )}
              
              {votingState.isActive && (
@@ -317,9 +368,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse })
             </div>
             
             {!isCollapsed && (
-                <p className="text-[9px] font-bold text-slate-400 mt-1 truncate max-w-[180px]" title={db.getCurrentWorkspace()}>
-                    Sessie: {db.getCurrentWorkspace()}
-                </p>
+                <div className="space-y-2 mt-1 pt-3 border-t border-slate-200/50">
+                    <p className="text-[9px] font-bold text-slate-400 truncate" title={db.getCurrentWorkspace()}>
+                        Sessie: {db.getCurrentWorkspace()}
+                    </p>
+                     <button 
+                        onClick={() => setIsHelpOpen(true)}
+                        className="w-full text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 group"
+                    >
+                        <HelpCircle size={14} className="group-hover:scale-110 transition-transform"/>
+                        <span className="text-[10px] font-black uppercase tracking-widest">Handleiding</span>
+                    </button>
+                </div>
+            )}
+
+            {isCollapsed && (
+                <button 
+                  onClick={() => setIsHelpOpen(true)}
+                  className="mt-2 text-slate-400 hover:text-emerald-500 transition-colors"
+                  title="Handleiding"
+                >
+                   <HelpCircle size={18} />
+                </button>
             )}
 
             {!isCollapsed && isDirectorMode && (
@@ -330,6 +400,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse })
           </div>
         </div>
       </div>
+
+      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
       {isMobileOpen && (
         <div 

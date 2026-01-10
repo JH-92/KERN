@@ -4,6 +4,7 @@ import { Employee, ActionStatus, MeetingType } from '../types';
 import { UserPlus, Trash2, Edit3, Search, Users, UploadCloud, CheckCircle, Database, AlertTriangle, ToggleLeft, ToggleRight, Bomb, Share2, FileSpreadsheet, Zap, ClipboardList, Gavel } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { CustomDatePicker } from '../components/CustomDatePicker';
+import { KernLogo } from '../components/KernLogo';
 
 const SettingsPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);

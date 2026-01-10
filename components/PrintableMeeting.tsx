@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Meeting } from '../types';
 import { KernLogo } from './KernLogo';
@@ -26,7 +25,7 @@ export const PrintableMeeting: React.FC<PrintableMeetingProps> = ({ meeting }) =
       <header className="border-b-4 border-slate-900 pb-6 mb-10">
         <div className="flex justify-between items-end">
           <div className="flex items-center gap-5">
-            <KernLogo size={56} className="text-slate-900" />
+            <KernLogo size={64} className="text-emerald-500" />
             <div>
               <div className="flex items-center gap-2">
                  <h1 className="text-4xl font-black tracking-tighter text-slate-900 leading-none">KERN</h1>

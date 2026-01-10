@@ -27,22 +27,6 @@ const getWeekNumber = (dateString: string) => {
   return weekNo;
 };
 
-// Binary Stopwatch Component for Director Mode
-const BinaryStopwatch: React.FC<{ time: number }> = ({ time }) => {
-    const toBinary = (num: number) => num.toString(2).padStart(6, '0');
-    const h = Math.floor(time / 3600);
-    const m = Math.floor((time % 3600) / 60);
-    const s = time % 60;
-    
-    return (
-        <div className="flex gap-2 text-[10px] font-mono tracking-widest text-emerald-500">
-            <div>{toBinary(h)}</div>:
-            <div>{toBinary(m)}</div>:
-            <div>{toBinary(s)}</div>
-        </div>
-    );
-};
-
 const NewMeetingPage: React.FC = () => {
   const navigate = useNavigate();
   const [isDirectorMode, setIsDirectorMode] = useState(document.documentElement.classList.contains('director-mode'));
@@ -522,7 +506,7 @@ const NewMeetingPage: React.FC = () => {
                     <div className={`text-3xl font-black tabular-nums tracking-tighter transition-colors duration-300 ${
                         isDirectorMode && hoverTimer ? 'text-cyan-500' : 'text-slate-900'
                     }`}>
-                        {hoverTimer && isDirectorMode ? <BinaryStopwatch time={stopwatchTime} /> : formatStopwatch(stopwatchTime)}
+                        {formatStopwatch(stopwatchTime)}
                     </div>
                  </div>
                  <button 
@@ -645,7 +629,7 @@ const NewMeetingPage: React.FC = () => {
                            <Plus size={16} strokeWidth={3} />
                        </button>
                    </div>
-                </form>
+               </form>
               </div>
             </div>
           </div>
@@ -714,7 +698,7 @@ const NewMeetingPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-black text-slate-900 mb-3 uppercase tracking-widest">Type overleg</label>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Notulen</label>
                       <textarea 
                         rows={6}
                         value={notes[item] || ''}
@@ -727,18 +711,18 @@ const NewMeetingPage: React.FC = () => {
 
                   {/* Actions & Decisions */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                      {/* Actions Column */}
-                      <div className="space-y-8">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                          <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                            <Plus size={16} /> Actie toevoegen
-                          </h4>
-                          <button onClick={() => addActionToCart(item)} className="bg-blue-600 text-white p-2 rounded-full hover:scale-110 transition-transform">
-                            <Plus size={20} />
-                          </button>
-                        </div>
-                        <div className="space-y-4">
-                         {tempActions[item]?.map((action, idx) => (
+                     {/* Actions Column */}
+                     <div className="space-y-8">
+                       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                         <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
+                           <Plus size={16} /> Actie toevoegen
+                         </h4>
+                         <button onClick={() => addActionToCart(item)} className="bg-blue-600 text-white p-2 rounded-full hover:scale-110 transition-transform">
+                           <Plus size={20} />
+                         </button>
+                       </div>
+                       <div className="space-y-4">
+                        {tempActions[item]?.map((action, idx) => (
                           <div key={`act-input-${idx}`} className={`bg-slate-50 border border-slate-200 rounded-[2rem] shadow-sm animate-in zoom-in-95 transition-all ${action.isLocked ? 'p-0 overflow-hidden' : 'p-6'}`}>
                               {/* Action Item Input Logic (same as before) */}
                               {!action.isLocked ? (
@@ -764,7 +748,7 @@ const NewMeetingPage: React.FC = () => {
                                     <button onClick={() => lockAction(item, idx)} className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 h-12 rounded-xl border border-emerald-100 transition-colors shadow-sm"><CheckCircle size={16} /><span className="text-xs font-black uppercase tracking-widest">Actie opslaan</span></button>
                                   </div>
                                </div>
-                              ) : (
+                             ) : (
                                <div className="flex items-start justify-between p-4 bg-white hover:bg-slate-50 transition-colors">
                                   <div className="flex-1 pr-4">
                                       <h5 className="font-bold text-slate-800 text-sm mb-1">{action.title}</h5>
@@ -778,24 +762,24 @@ const NewMeetingPage: React.FC = () => {
                                       <button onClick={() => removeAction(item, idx)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
                                   </div>
                                 </div>
-                              )}
-                           </div>
-                         ))}
-                        </div>
-                      </div>
-                      {/* Decisions Column */}
-                      <div className="space-y-8">
-                       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                         <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center">
-                           <PlusCircle className="w-6 h-6 text-emerald-600 mr-3" /> Besluit vastleggen
-                         </h4>
-                         <button onClick={() => addDecisionToCart(item)} className="bg-emerald-600 text-white p-2 rounded-full hover:scale-110 transition-transform"><Plus size={20} /></button>
+                             )}
+                          </div>
+                        ))}
                        </div>
-                       <div className="space-y-4">
-                          {tempDecisions[item]?.map((decision, idx) => (
-                            <div key={`dec-input-${idx}`} className={`bg-slate-50 border border-slate-200 rounded-[2rem] shadow-sm animate-in zoom-in-95 transition-all ${decision.isLocked ? 'p-0 overflow-hidden' : 'p-6'}`}>
+                     </div>
+                     {/* Decisions Column */}
+                     <div className="space-y-8">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                        <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center">
+                          <PlusCircle className="w-6 h-6 text-emerald-600 mr-3" /> Besluit vastleggen
+                        </h4>
+                        <button onClick={() => addDecisionToCart(item)} className="bg-emerald-600 text-white p-2 rounded-full hover:scale-110 transition-transform"><Plus size={20} /></button>
+                      </div>
+                      <div className="space-y-4">
+                         {tempDecisions[item]?.map((decision, idx) => (
+                           <div key={`dec-input-${idx}`} className={`bg-slate-50 border border-slate-200 rounded-[2rem] shadow-sm animate-in zoom-in-95 transition-all ${decision.isLocked ? 'p-0 overflow-hidden' : 'p-6'}`}>
                               {!decision.isLocked ? (
-                                  <div className="space-y-4">
+                                 <div className="space-y-4">
                                     <div className="space-y-2">
                                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Titel</label>
                                       <input type="text" placeholder="Korte titel" value={decision.title || ''} onChange={(e) => updateDecision(item, idx, 'title', e.target.value)} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-100 font-bold text-slate-800" />
@@ -818,24 +802,24 @@ const NewMeetingPage: React.FC = () => {
                                     </div>
                                  </div>
                               ) : (
-                                  <div className="flex items-start justify-between p-4 bg-emerald-50/30 hover:bg-emerald-50/60 transition-colors border-l-4 border-emerald-500">
-                                     <div className="flex-1 pr-4">
-                                         <h5 className="font-bold text-slate-800 text-sm mb-1">{decision.title}</h5>
-                                         <div className="flex flex-wrap gap-2 mb-2">
-                                             <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200"><Clock size={10} /> {decision.date}</div>
-                                             {decision.owners?.map(owner => <span key={owner} className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-md uppercase">{owner}</span>)}
-                                         </div>
-                                     </div>
-                                     <div className="flex flex-col gap-2">
-                                         <button onClick={() => unlockDecision(item, idx)} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"><Edit2 size={16} /></button>
-                                         <button onClick={() => removeDecision(item, idx)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
-                                     </div>
-                                  </div>
-                              )}
-                            </div>
-                          ))}
-                         </div>
-                      </div>
+                                 <div className="flex items-start justify-between p-4 bg-emerald-50/30 hover:bg-emerald-50/60 transition-colors border-l-4 border-emerald-500">
+                                    <div className="flex-1 pr-4">
+                                        <h5 className="font-bold text-slate-800 text-sm mb-1">{decision.title}</h5>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200"><Clock size={10} /> {decision.date}</div>
+                                            {decision.owners?.map(owner => <span key={owner} className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-md uppercase">{owner}</span>)}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <button onClick={() => unlockDecision(item, idx)} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                                        <button onClick={() => removeDecision(item, idx)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                    </div>
+                                </div>
+                             )}
+                          </div>
+                        ))}
+                       </div>
+                     </div>
                   </div>
 
                   <div className="flex justify-end pt-8 border-t border-slate-100">

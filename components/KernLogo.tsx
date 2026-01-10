@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface KernLogoProps {
@@ -12,21 +11,18 @@ export const KernLogo: React.FC<KernLogoProps> = ({ className = "text-emerald-60
       width={size} 
       height={size} 
       viewBox="0 0 100 100" 
-      fill="none" 
+      fill="currentColor" 
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      {/* Outer Housing: Sturdy Box */}
-      <rect x="10" y="10" width="80" height="80" rx="20" stroke="currentColor" strokeWidth="12" />
-      
-      {/* The Core: Central Power Source */}
-      <rect x="38" y="38" width="24" height="24" rx="4" fill="currentColor" />
-      
-      {/* Axis Lines - Focus Indicators */}
-      <path d="M50 10V25" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-      <path d="M50 75V90" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-      <path d="M10 50H25" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-      <path d="M75 50H90" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+      {/* The Assembly: 4 Squares in a 2x2 grid, rotated 45 degrees to form diamonds */}
+      {/* Grid Bounding Box: 70x70 centered. Gap: 4px. Square size: 33px. */}
+      <g transform="rotate(45 50 50)">
+          <rect x="15" y="15" width="33" height="33" rx="3" />
+          <rect x="52" y="15" width="33" height="33" rx="3" />
+          <rect x="15" y="52" width="33" height="33" rx="3" />
+          <rect x="52" y="52" width="33" height="33" rx="3" />
+      </g>
     </svg>
   );
 };
