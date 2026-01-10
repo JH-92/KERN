@@ -9,6 +9,9 @@ const SettingsPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Workspace State
+  const [workspaceInput, setWorkspaceInput] = useState(db.getCurrentWorkspace());
+
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
@@ -26,10 +29,9 @@ const SettingsPage: React.FC = () => {
   // Notification State
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const currentWorkspace = db.getCurrentWorkspace();
-
   const loadData = () => {
     setEmployees(db.getEmployees());
+    setWorkspaceInput(db.getCurrentWorkspace());
   };
 
   useEffect(() => {
@@ -39,6 +41,32 @@ const SettingsPage: React.FC = () => {
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  // Workspace Handlers
+  const handleWorkspaceUpdate = () => {
+      if (workspaceInput === db.getCurrentWorkspace()) return;
+      
+      const newId = db.setWorkspace(workspaceInput);
+      setWorkspaceInput(newId);
+      
+      // Update URL without reload to support Deep Linking instantly
+      const url = new URL(window.location.href);
+      url.searchParams.set('ws', newId);
+      window.history.pushState({}, '', url);
+
+      loadData(); // Reload data for the new workspace context
+      showToast(`Workspace gewijzigd naar: ${newId}`);
+  };
+
+  const handleCopyTeamsLink = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('ws', workspaceInput);
+      // Ensure we use the base origin for clean linking
+      const cleanUrl = `${window.location.origin}${window.location.pathname}?ws=${workspaceInput}`;
+      
+      navigator.clipboard.writeText(cleanUrl);
+      showToast("Teams Tab-URL gekopieerd!");
   };
 
   const handleSaveEmployee = (e: React.FormEvent) => {
@@ -129,20 +157,11 @@ const SettingsPage: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `KERN_DATA_EXPORT_${currentWorkspace}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `KERN_DATA_EXPORT_${workspaceInput}_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     showToast("Excel-bestand wordt gedownload.");
-  };
-
-  const handleCopyLink = () => {
-     const baseUrl = window.location.origin + window.location.pathname;
-     const cleanBase = baseUrl.split('#')[0].split('?')[0];
-     const link = `${cleanBase}?ws=${currentWorkspace}`;
-     
-     navigator.clipboard.writeText(link);
-     showToast("Workspace link gekopieerd!");
   };
 
   const openEdit = (emp: Employee) => {
@@ -205,15 +224,19 @@ const SettingsPage: React.FC = () => {
                          </span>
                      </div>
                      <div className="flex items-center gap-2">
-                         <code className="flex-1 text-base font-mono font-bold text-slate-800 bg-white px-3 py-2 rounded-lg border border-slate-100 select-all">
-                            {currentWorkspace}
-                         </code>
+                         <input 
+                            type="text"
+                            value={workspaceInput}
+                            onChange={(e) => setWorkspaceInput(e.target.value)}
+                            onBlur={handleWorkspaceUpdate}
+                            onKeyDown={(e) => e.key === 'Enter' && handleWorkspaceUpdate()}
+                            className="flex-1 text-base font-mono font-bold text-slate-800 bg-white px-3 py-2 rounded-md border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                         />
                          <button 
-                            onClick={handleCopyLink} 
-                            className="bg-slate-900 hover:bg-emerald-600 text-white p-2.5 rounded-lg transition-colors shadow-lg"
-                            title="Kopieer deelbare link"
+                            onClick={handleCopyTeamsLink} 
+                            className="bg-slate-900 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-md font-bold text-xs uppercase tracking-widest transition-colors shadow-lg whitespace-nowrap"
                          >
-                             <LinkIcon size={18} />
+                             KOPIEER TEAMS TAB-URL
                          </button>
                      </div>
                  </div>
@@ -471,7 +494,7 @@ const SettingsPage: React.FC = () => {
             </div>
             <h3 className="text-2xl font-black text-slate-900 mb-2">Weet je het zeker?</h3>
             <p className="text-sm text-slate-500 mb-8 leading-relaxed">
-              Alle data in workspace <strong>{currentWorkspace}</strong> wordt definitief gewist.
+              Alle data in workspace <strong>{workspaceInput}</strong> wordt definitief gewist.
             </p>
             <div className="flex gap-3">
                <button onClick={() => setShowResetConfirm(false)} className="flex-1 bg-white border-2 border-slate-200 text-slate-700 py-4 rounded-xl font-black text-sm uppercase tracking-widest">

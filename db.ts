@@ -27,10 +27,11 @@ const getWorkspaceId = (): string => {
   return 'default';
 };
 
-const WORKSPACE_ID = getWorkspaceId();
+// Mutable variable to allow dynamic switching without page reload
+let currentWorkspaceId = getWorkspaceId();
 
 // Namespace keys to simulate "Cloud Buckets" in LocalStorage
-const getKey = (key: string) => `mm2026_${WORKSPACE_ID}_${key}`;
+const getKey = (key: string) => `mm2026_${currentWorkspaceId}_${key}`;
 
 const STORAGE_KEYS = {
   EMPLOYEES: 'employees',
@@ -85,7 +86,14 @@ const storage = {
 
 export const db = {
   // --- METADATA ---
-  getCurrentWorkspace: () => WORKSPACE_ID,
+  getCurrentWorkspace: () => currentWorkspaceId,
+  
+  setWorkspace: (id: string): string => {
+    const cleanId = id.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+    currentWorkspaceId = cleanId;
+    localStorage.setItem('kern_workspace_id', cleanId);
+    return cleanId;
+  },
 
   // --- READS ---
   getEmployees: (): Employee[] => {
