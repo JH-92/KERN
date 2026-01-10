@@ -1,15 +1,15 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { db } from '../db';
 import { Action, ActionStatus, Employee, MeetingType } from '../types';
-import { AlertTriangle, Clock, Search, User, ArrowUpDown, ChevronDown, Briefcase, Layout, X, CheckCircle, Info } from 'lucide-react';
+import { AlertTriangle, Clock, Search, User, ArrowUpDown, ChevronDown, Briefcase, Layout, X, CheckCircle, Info, Flag } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 
 const ActionListPage: React.FC = () => {
   const location = useLocation();
   const [actions, setActions] = useState<Action[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isDirectorMode, setIsDirectorMode] = useState(false);
   
   // Smart Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,11 +28,22 @@ const ActionListPage: React.FC = () => {
   const loadData = () => {
     setActions(db.getAllActions());
     setEmployees(db.getEmployees());
+    setIsDirectorMode(document.documentElement.classList.contains('director-mode'));
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+    const handleUpdate = () => {
+        loadData();
+        if (selectedAction) {
+            const freshActions = db.getAllActions();
+            const updated = freshActions.find(a => a.id === selectedAction.id);
+            if (updated) setSelectedAction(updated);
+        }
+    };
+    window.addEventListener('kern-data-update', handleUpdate);
+    return () => window.removeEventListener('kern-data-update', handleUpdate);
+  }, [selectedAction]);
 
   useEffect(() => {
     if ((location.state as any)?.filter) {
@@ -43,12 +54,17 @@ const ActionListPage: React.FC = () => {
     }
   }, [location.state]);
 
-  const handleStatusChange = (meetingId: string, actionId: string, status: ActionStatus) => {
+  // Escape key handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setSelectedAction(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleStatusChange = (meetingId: string | null, actionId: string, status: ActionStatus) => {
     db.updateActionStatus(meetingId, actionId, status);
-    loadData();
-    if (selectedAction && selectedAction.id === actionId) {
-        setSelectedAction(prev => prev ? { ...prev, status } : null);
-    }
   };
 
   const filteredActions = useMemo(() => {
@@ -225,7 +241,7 @@ const ActionListPage: React.FC = () => {
                     <tr 
                       key={action.id} 
                       onClick={() => setSelectedAction(action)}
-                      className={`group transition-all cursor-pointer ${overdue ? 'bg-red-50/40' : 'hover:bg-slate-50/80'}`}
+                      className={`group transition-all cursor-pointer ${overdue ? 'bg-red-50/40' : 'hover:bg-slate-50/80'} ${action.isLegacy ? 'bg-slate-50/30' : ''}`}
                     >
                       <td className="px-8 py-6">
                         {action.originType === MeetingType.PROJECT ? (
@@ -237,8 +253,8 @@ const ActionListPage: React.FC = () => {
                             <Layout size={14} />
                           </div>
                         ) : (
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center">
-                             -
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center border border-dashed border-slate-300" title="Geïmporteerd">
+                             <Info size={14} />
                           </div>
                         )}
                       </td>
@@ -272,7 +288,13 @@ const ActionListPage: React.FC = () => {
                         <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-black ${
                           overdue ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
                         }`}>
-                          {overdue ? <AlertTriangle size={14} /> : <Clock size={14} />}
+                          {overdue ? (
+                              isDirectorMode ? (
+                                  <Flag size={14} className="animate-wave-flag fill-red-700" />
+                              ) : (
+                                  <AlertTriangle size={14} />
+                              )
+                          ) : <Clock size={14} />}
                           {action.deadline}
                         </div>
                       </td>
@@ -307,7 +329,6 @@ const ActionListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* --- DETAIL MODAL --- */}
       {selectedAction && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setSelectedAction(null)}></div>
@@ -321,15 +342,20 @@ const ActionListPage: React.FC = () => {
                         <span className="font-mono text-xs font-black text-slate-300 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
                             {selectedAction.readable_id}
                         </span>
+                        {selectedAction.isLegacy && (
+                            <span className="text-[10px] font-black uppercase text-slate-600 bg-slate-200 px-2 py-1 rounded-lg border border-slate-300 border-dashed flex items-center gap-1">
+                                <Info size={12} /> Excel import
+                            </span>
+                        )}
                         {selectedAction.originType === MeetingType.PROJECT ? (
                              <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-lg flex items-center gap-1">
                                 <Briefcase size={12} /> Projectleider
                              </span>
-                        ) : (
+                        ) : selectedAction.originType === MeetingType.PLANNING ? (
                              <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg flex items-center gap-1">
                                 <Layout size={12} /> Planning
                              </span>
-                        )}
+                        ) : null}
                     </div>
                     <h2 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight mb-2">
                         {selectedAction.title || "Geen titel opgegeven"}
@@ -375,7 +401,7 @@ const ActionListPage: React.FC = () => {
 
                     <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
                          <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Huidige Status</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Huidige status</label>
                             <select 
                               value={selectedAction.status}
                               onChange={(e) => handleStatusChange(selectedAction.meetingId, selectedAction.id, e.target.value as ActionStatus)}
@@ -392,12 +418,17 @@ const ActionListPage: React.FC = () => {
                               <option value={ActionStatus.DONE}>Gereed</option>
                             </select>
                          </div>
-                         <button 
-                            onClick={() => setSelectedAction(null)}
-                            className="bg-slate-900 text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-colors"
-                         >
-                            Sluiten
-                         </button>
+                         <div className="text-right">
+                             {selectedAction.isLegacy && (
+                                 <p className="text-xs text-slate-400 italic mb-2">Dit item is overgenomen uit de oude administratie en heeft geen gekoppeld verslag.</p>
+                             )}
+                             <button 
+                                onClick={() => setSelectedAction(null)}
+                                className="bg-slate-900 text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-colors"
+                             >
+                                Sluiten
+                             </button>
+                         </div>
                     </div>
                 </div>
             </div>

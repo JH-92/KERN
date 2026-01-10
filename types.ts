@@ -21,26 +21,28 @@ export interface Employee {
 export interface Action {
   id: string;
   readable_id: string;
-  meetingId: string;
-  title: string; // New field for short summary
-  description: string; // Detailed description
+  meetingId: string | null; // Nullable for legacy items
+  title: string; 
+  description: string; 
   owners: string[]; 
   deadline: string;
   status: ActionStatus;
   topic: string;
   originType?: MeetingType;
   completedAt?: string;
+  isLegacy?: boolean; // New flag
 }
 
 export interface Decision {
   id: string;
   readable_id: string;
-  meetingId: string;
-  title: string;       // New field
-  description: string; // Renamed/mapped from text
-  owners: string[];    // New field
-  date: string;        // New field
+  meetingId: string | null; // Nullable for legacy items
+  title: string;       
+  description: string; 
+  owners: string[];    
+  date: string;        
   topic: string;
+  isLegacy?: boolean; // New flag
 }
 
 export interface Topic {
@@ -64,4 +66,12 @@ export interface Meeting {
   notes: Note[];
   actions: Action[];
   decisions: Decision[];
+  duration?: string;
+}
+
+export interface VotingState {
+  isActive: boolean;
+  topic: string;
+  votes: string[]; 
+  startTime: number;
 }

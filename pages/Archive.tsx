@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { db } from '../db';
@@ -23,14 +22,36 @@ const ArchivePage: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<Action | Decision | null>(null);
   const [itemType, setItemType] = useState<'action' | 'decision' | null>(null);
 
+  const loadMeetings = () => {
+    const list = db.getMeetings();
+    const sorted = list.sort((a, b) => b.date.localeCompare(a.date));
+    setMeetings(sorted);
+  };
+
   useEffect(() => {
     loadMeetings();
-    // Check for saved state from NewMeeting redirect
+    const handleUpdate = () => loadMeetings();
+    window.addEventListener('kern-data-update', handleUpdate);
+
     if ((location.state as any)?.saved) {
         showToast("Vergadering succesvol gearchiveerd");
         window.history.replaceState({}, document.title);
     }
+    
+    return () => window.removeEventListener('kern-data-update', handleUpdate);
   }, []);
+
+  // Escape key handler for modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            if (selectedItem) closeModal();
+            if (showPrintPreview) setShowPrintPreview(false);
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedItem, showPrintPreview]);
 
   // Handle Deep Linking from Dashboard
   useEffect(() => {
@@ -48,12 +69,6 @@ const ArchivePage: React.FC = () => {
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
-  };
-
-  const loadMeetings = () => {
-    const list = db.getMeetings();
-    const sorted = list.sort((a, b) => b.date.localeCompare(a.date));
-    setMeetings(sorted);
   };
 
   const handleSelectMeeting = (id: string, list: Meeting[] = meetings) => {
@@ -80,7 +95,6 @@ const ArchivePage: React.FC = () => {
     db.updateMeetingNotes(selectedMeetingId, updatedNotes);
     
     setTimeout(() => {
-      loadMeetings();
       setIsUpdating(false);
       showToast("Notulen succesvol bijgewerkt!");
     }, 400);
@@ -88,14 +102,12 @@ const ArchivePage: React.FC = () => {
 
   const handleDeleteAction = (actionId: string) => {
     db.removeAction(selectedMeetingId, actionId);
-    loadMeetings();
     showToast("Actie verwijderd.");
     if (selectedItem?.id === actionId) closeModal();
   };
 
   const handleDeleteDecision = (decisionId: string) => {
     db.removeDecision(selectedMeetingId, decisionId);
-    loadMeetings();
     showToast("Besluit verwijderd.");
     if (selectedItem?.id === decisionId) closeModal();
   };
@@ -133,14 +145,12 @@ const ArchivePage: React.FC = () => {
 
   const selectedMeeting = meetings.find(m => m.id === selectedMeetingId);
 
-  // Search Logic
   const searchResults = useMemo(() => {
     if (!searchTerm.trim()) return null;
     const lowerQ = searchTerm.toLowerCase();
     
-    // Flatten all data
-    const allActions = meetings.flatMap(m => m.actions.map(a => ({...a, originDate: m.date, originType: m.type})));
-    const allDecisions = meetings.flatMap(m => m.decisions.map(d => ({...d, originDate: m.date, originType: m.type})));
+    const allActions = db.getAllActions();
+    const allDecisions = db.getAllDecisions();
     
     return {
         actions: allActions.filter(a => 
@@ -162,7 +172,6 @@ const ArchivePage: React.FC = () => {
     <div className="pb-32 animate-in fade-in slide-in-from-bottom-6 duration-700 relative">
       <PageHeader title="Archief & historie" subtitle="Raadpleeg en corrigeer vastgelegde notulen.">
         <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto items-center">
-          {/* Search Bar */}
           <div className="relative w-full md:w-64 order-2 md:order-1">
              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
              <input 
@@ -170,6 +179,7 @@ const ArchivePage: React.FC = () => {
                  placeholder="Zoek in archief..."
                  value={searchTerm}
                  onChange={(e) => setSearchTerm(e.target.value)}
+                 autoFocus
                  className="w-full pl-10 pr-4 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all font-bold text-slate-700 text-sm"
              />
           </div>
@@ -206,7 +216,6 @@ const ArchivePage: React.FC = () => {
       </PageHeader>
 
       {searchTerm ? (
-        // --- SEARCH RESULTS VIEW ---
         <div className="space-y-12 animate-in fade-in duration-300">
            <div className="bg-slate-900 text-white p-8 rounded-[2rem] flex items-center justify-between">
               <div>
@@ -220,23 +229,23 @@ const ArchivePage: React.FC = () => {
               </button>
            </div>
 
-           {/* ACTIONS RESULTS */}
            {searchResults && searchResults.actions.length > 0 && (
                <div className="space-y-4">
                    <h4 className="text-sm font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 px-2">
-                      <ClipboardList size={16} /> Gevonden Acties
+                      <ClipboardList size={16} /> Gevonden acties
                    </h4>
                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                        {searchResults.actions.map(a => (
                            <div 
                                key={a.id} 
                                onClick={() => openItem(a, 'action')}
-                               className="group flex flex-col sm:flex-row sm:items-center justify-between p-6 bg-white rounded-[2rem] border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer hover:-translate-y-1 hover:shadow-lg border-l-4 border-l-transparent hover:border-l-blue-500"
+                               className={`group flex flex-col sm:flex-row sm:items-center justify-between p-6 bg-white rounded-[2rem] border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer hover:-translate-y-1 hover:shadow-lg border-l-4 ${a.isLegacy ? 'border-l-slate-300' : 'border-l-transparent hover:border-l-blue-500'}`}
                            >
                                <div className="space-y-2">
                                    <div className="flex items-center gap-2">
                                        <span className="text-[10px] font-black text-slate-300 bg-slate-100 px-2 py-0.5 rounded-md">{a.readable_id}</span>
-                                       <span className="text-[10px] font-bold text-slate-400 uppercase">{(a as any).originDate}</span>
+                                       {a.isLegacy && <span className="text-[9px] font-black bg-slate-200 px-1 py-0.5 rounded uppercase tracking-widest">Excel</span>}
+                                       {!a.isLegacy && <span className="text-[10px] font-bold text-slate-400 uppercase">Kern</span>}
                                    </div>
                                    <div className="text-sm font-bold text-slate-900 group-hover:text-blue-700 transition-colors">{a.title}</div>
                                    <div className="text-xs text-slate-500 line-clamp-1">{a.description}</div>
@@ -251,23 +260,22 @@ const ArchivePage: React.FC = () => {
                </div>
            )}
 
-           {/* DECISIONS RESULTS */}
            {searchResults && searchResults.decisions.length > 0 && (
                <div className="space-y-4">
                    <h4 className="text-sm font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2 px-2">
-                      <Gavel size={16} /> Gevonden Besluiten
+                      <Gavel size={16} /> Gevonden besluiten
                    </h4>
                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                        {searchResults.decisions.map(d => (
                            <div 
                                key={d.id} 
                                onClick={() => openItem(d, 'decision')}
-                               className="group flex flex-col sm:flex-row sm:items-center justify-between p-6 bg-white rounded-[2rem] border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer hover:-translate-y-1 hover:shadow-lg border-l-4 border-l-transparent hover:border-l-emerald-500"
+                               className={`group flex flex-col sm:flex-row sm:items-center justify-between p-6 bg-white rounded-[2rem] border border-slate-100 hover:bg-slate-50 transition-all cursor-pointer hover:-translate-y-1 hover:shadow-lg border-l-4 ${d.isLegacy ? 'border-l-slate-300' : 'border-l-transparent hover:border-l-emerald-500'}`}
                            >
                                <div className="space-y-2">
                                    <div className="flex items-center gap-2">
                                        <span className="text-[10px] font-black text-slate-300 bg-slate-100 px-2 py-0.5 rounded-md">{d.readable_id}</span>
-                                       <span className="text-[10px] font-bold text-slate-400 uppercase">{(d as any).originDate}</span>
+                                       {d.isLegacy && <span className="text-[9px] font-black bg-slate-200 px-1 py-0.5 rounded uppercase tracking-widest">Excel</span>}
                                    </div>
                                    <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">{d.title}</div>
                                    <div className="text-xs text-slate-500 line-clamp-1">{d.description}</div>
@@ -282,7 +290,6 @@ const ArchivePage: React.FC = () => {
                </div>
            )}
            
-           {/* NO RESULTS */}
            {searchResults && searchResults.actions.length === 0 && searchResults.decisions.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 opacity-50">
                   <Search size={48} className="text-slate-300 mb-4" />
@@ -291,22 +298,20 @@ const ArchivePage: React.FC = () => {
            )}
         </div>
       ) : selectedMeeting ? (
-        // --- STANDARD VIEW ---
         <div className="space-y-12">
-          {/* Executive Summary Info */}
           <section className="bg-slate-900 p-12 rounded-[3rem] text-white flex flex-wrap gap-16 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
               <ClipboardList size={200} />
             </div>
             <div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-3">Datum & Periode</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-3">Datum & periode</span>
               <div className="flex items-center gap-3 text-white font-black text-2xl">
                 <Calendar size={24} className="text-blue-400" />
                 {selectedMeeting.date} <span className="text-blue-400/40">/</span> Week {selectedMeeting.weekNumber}
               </div>
             </div>
             <div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-3">Team Aanwezig</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-3">Team aanwezig</span>
               <div className="flex items-center gap-3 text-white font-bold text-lg">
                 <Users size={22} className="text-blue-400" />
                 {selectedMeeting.attendees.join(', ')}
@@ -314,7 +319,6 @@ const ArchivePage: React.FC = () => {
             </div>
           </section>
 
-          {/* Fix-It station Section */}
           <div className="space-y-10">
             <div className="flex items-center justify-between px-4">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
@@ -341,7 +345,6 @@ const ArchivePage: React.FC = () => {
                     <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">ID: {selectedMeeting.id}</span>
                   </div>
                   <div className="p-10 space-y-10">
-                    {/* Editable Note Area */}
                     <div className="space-y-4">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Opgeslagen tekst</label>
                       <textarea 
@@ -353,7 +356,6 @@ const ArchivePage: React.FC = () => {
                       />
                     </div>
 
-                    {/* Historical Records Interaction */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-6 border-t border-slate-100">
                       <div className="space-y-4">
                         <h5 className="text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
@@ -429,7 +431,6 @@ const ArchivePage: React.FC = () => {
         </div>
       )}
 
-      {/* DETAIL MODAL */}
       {selectedItem && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={closeModal}></div>
@@ -443,6 +444,11 @@ const ArchivePage: React.FC = () => {
                 <span className="font-mono text-xs font-black text-slate-300 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
                   {selectedItem.readable_id}
                 </span>
+                {selectedItem.isLegacy && (
+                    <span className="text-[10px] font-black uppercase text-slate-600 bg-slate-200 px-2 py-1 rounded-lg border border-slate-300 border-dashed flex items-center gap-1">
+                        <Info size={12} /> Excel import
+                    </span>
+                )}
                 {itemType === 'action' ? (
                      <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-lg flex items-center gap-1">
                         <Clock size={12} /> Actie
@@ -474,7 +480,7 @@ const ArchivePage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                  <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 flex items-center gap-2">
-                        <User size={14} /> Eigenaar / Verantwoordelijke
+                        <User size={14} /> Eigenaar / verantwoordelijke
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {selectedItem.owners && selectedItem.owners.length > 0 ? (
@@ -498,44 +504,28 @@ const ArchivePage: React.FC = () => {
                  </div>
               </div>
 
-              {itemType === 'action' && (
-                 <div className="pt-4 border-t border-slate-100">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Huidige Status</label>
-                    <div className="inline-block">
-                        {(selectedItem as Action).status === ActionStatus.DONE ? (
-                           <span className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl font-black text-xs uppercase flex items-center gap-2">
-                               <CheckCircle size={14} /> Afgehandeld
-                           </span>
-                        ) : (selectedItem as Action).status === ActionStatus.PROGRESS ? (
-                           <span className="px-4 py-2 bg-amber-100 text-amber-700 rounded-xl font-black text-xs uppercase flex items-center gap-2">
-                               <Clock size={14} /> In behandeling
-                           </span>
-                        ) : (
-                           <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-xl font-black text-xs uppercase flex items-center gap-2">
-                               <AlertCircle size={14} /> Openstaand
-                           </span>
-                        )}
-                    </div>
-                 </div>
-              )}
-
-              <div className="pt-6 border-t border-slate-100 flex justify-end">
-                <button 
-                  onClick={closeModal}
-                  className="bg-slate-900 text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-colors"
-                >
-                  Sluiten
-                </button>
+              <div className="pt-6 border-t border-slate-100 flex justify-between items-center">
+                {selectedItem.isLegacy && (
+                    <span className="text-xs text-slate-400 italic">
+                        Dit item is overgenomen uit de oude administratie en heeft geen gekoppeld verslag.
+                    </span>
+                )}
+                <div className="flex-1 flex justify-end">
+                    <button 
+                    onClick={closeModal}
+                    className="bg-slate-900 text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-colors"
+                    >
+                    Sluiten
+                    </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* PRINT PREVIEW OVERLAY */}
       {showPrintPreview && selectedMeeting && (
         <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 overflow-hidden">
-           {/* Toolbar */}
            <div className="flex items-center justify-between px-8 py-6 bg-slate-900 border-b border-slate-800 shrink-0 z-50">
               <div className="flex items-center gap-4">
                  <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-lg">
@@ -552,7 +542,7 @@ const ArchivePage: React.FC = () => {
                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all"
                  >
                    <Download size={18} />
-                   Download Verslag (PDF)
+                   Download verslag (PDF)
                  </button>
                  <button 
                    onClick={() => setShowPrintPreview(false)}
@@ -563,7 +553,6 @@ const ArchivePage: React.FC = () => {
               </div>
            </div>
 
-           {/* Scrollable Document Area */}
            <div className="flex-1 overflow-y-auto p-8 md:p-12 custom-scrollbar bg-slate-900/50" onClick={(e) => e.stopPropagation()}>
               <div id="printable-area" className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white shadow-2xl p-[15mm] md:p-[20mm] rounded-sm transform origin-top scale-100 sm:scale-100 lg:scale-100 xl:scale-110 mb-20 transition-transform relative z-50">
                  <PrintableMeeting meeting={selectedMeeting} />
@@ -572,7 +561,6 @@ const ArchivePage: React.FC = () => {
         </div>
       )}
 
-      {/* TOAST NOTIFICATION */}
       {toastMsg && (
         <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 z-50 flex items-center gap-3">
           <div className="bg-emerald-500 p-1 rounded-full">

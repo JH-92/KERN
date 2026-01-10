@@ -27,7 +27,23 @@ const getWeekNumber = (dateString: string) => {
   return weekNo;
 };
 
-export const NewMeetingPage: React.FC = () => {
+// Binary Stopwatch Component for Director Mode
+const BinaryStopwatch: React.FC<{ time: number }> = ({ time }) => {
+    const toBinary = (num: number) => num.toString(2).padStart(6, '0');
+    const h = Math.floor(time / 3600);
+    const m = Math.floor((time % 3600) / 60);
+    const s = time % 60;
+    
+    return (
+        <div className="flex gap-2 text-[10px] font-mono tracking-widest text-emerald-500">
+            <div>{toBinary(h)}</div>:
+            <div>{toBinary(m)}</div>:
+            <div>{toBinary(s)}</div>
+        </div>
+    );
+};
+
+const NewMeetingPage: React.FC = () => {
   const navigate = useNavigate();
   const [isDirectorMode, setIsDirectorMode] = useState(document.documentElement.classList.contains('director-mode'));
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -56,9 +72,9 @@ export const NewMeetingPage: React.FC = () => {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  // --- GIZMO: STOPWATCH STATE (PERSISTENT) ---
-  const [stopwatchTime, setStopwatchTime] = useState(db.getTimerElapsed());
-  const [isStopwatchRunning, setIsStopwatchRunning] = useState(db.getTimerState().isRunning);
+  // --- GIZMO: STOPWATCH STATE ---
+  const [stopwatchTime, setStopwatchTime] = useState(0);
+  const [isStopwatchRunning, setIsStopwatchRunning] = useState(false);
 
   // --- GIZMO: DATA FLOW ANIMATION STATE ---
   const [isSaving, setIsSaving] = useState(false);
@@ -98,24 +114,14 @@ export const NewMeetingPage: React.FC = () => {
     db.saveDraft(draft);
   }, [date, meetingType, selectedAttendees, notes, topics, topicInputs, tempActions, tempDecisions]);
 
-  // Persistent Stopwatch Effect
+  // Stopwatch Effect
   useEffect(() => {
-    const updateTimer = () => {
-        setStopwatchTime(db.getTimerElapsed());
-        setIsStopwatchRunning(db.getTimerState().isRunning);
-    };
-
-    updateTimer(); // Initial update
-
-    const interval = setInterval(updateTimer, 1000); // Check every second
-    const handleSync = () => updateTimer();
-
-    window.addEventListener('kern-data-update', handleSync);
-    return () => {
-        clearInterval(interval);
-        window.removeEventListener('kern-data-update', handleSync);
-    };
-  }, []);
+    let interval: any;
+    if (isStopwatchRunning) {
+        interval = setInterval(() => setStopwatchTime(t => t + 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isStopwatchRunning]);
 
   // Voting & Presence Sync Listener
   useEffect(() => {
@@ -154,14 +160,6 @@ export const NewMeetingPage: React.FC = () => {
     const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
     return `${h}:${m}:${s}`;
-  };
-
-  const handleToggleTimer = () => {
-      if (isStopwatchRunning) {
-          db.pauseTimer();
-      } else {
-          db.startTimer();
-      }
   };
 
   const weekNumber = useMemo(() => getWeekNumber(date), [date]);
@@ -207,7 +205,6 @@ export const NewMeetingPage: React.FC = () => {
   const handleFullReset = () => {
     db.clearDraft();
     db.stopVote();
-    db.resetTimer();
     
     // Reset all fields to defaults
     setDate(new Date().toLocaleDateString('en-CA'));
@@ -379,7 +376,6 @@ export const NewMeetingPage: React.FC = () => {
         db.saveMeeting(newMeeting);
         db.clearDraft();
         db.stopVote(); // Reset voting on save
-        db.resetTimer(); // Reset timer on save
         navigate('/archief', { state: { saved: true } });
     });
   };
@@ -489,28 +485,18 @@ export const NewMeetingPage: React.FC = () => {
             <div className="space-y-8">
               {/* GIZMO: LIVE STOPWATCH CONTROL */}
               <div 
-                className={`bg-slate-50 p-6 rounded-3xl border border-slate-200 flex items-center justify-between transition-all duration-300 ease-out ${
-                    isDirectorMode && hoverTimer 
-                    ? '-translate-y-1 shadow-lg shadow-cyan-100/50 border-cyan-200' 
-                    : ''
-                }`}
+                className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex items-center justify-between"
                 onMouseEnter={() => isDirectorMode && setHoverTimer(true)}
                 onMouseLeave={() => setHoverTimer(false)}
               >
                  <div>
-                    <span className={`text-[10px] font-black tracking-widest block mb-1 transition-colors duration-300 ${
-                        isDirectorMode && hoverTimer ? 'text-cyan-500' : 'text-slate-400 uppercase'
-                    }`}>
-                        {isDirectorMode && hoverTimer ? 'Session hangtime' : 'Vergaderduur'}
-                    </span>
-                    <div className={`text-3xl font-black tabular-nums tracking-tighter transition-colors duration-300 ${
-                        isDirectorMode && hoverTimer ? 'text-cyan-500' : 'text-slate-900'
-                    }`}>
-                        {formatStopwatch(stopwatchTime)}
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Vergaderduur</span>
+                    <div className="text-3xl font-black text-slate-900 tabular-nums tracking-tighter">
+                        {hoverTimer && isDirectorMode ? <BinaryStopwatch time={stopwatchTime} /> : formatStopwatch(stopwatchTime)}
                     </div>
                  </div>
                  <button 
-                    onClick={handleToggleTimer}
+                    onClick={() => setIsStopwatchRunning(!isStopwatchRunning)}
                     className={`px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all transform active:scale-95 ${
                         isStopwatchRunning 
                         ? 'bg-white border-2 border-red-100 text-red-500 hover:bg-red-50 shadow-red-100' 
@@ -556,8 +542,7 @@ export const NewMeetingPage: React.FC = () => {
                       }`}
                     >
                       <Briefcase size={16} />
-                      <span className="sm:hidden">Project</span>
-                      <span className="hidden sm:inline">Projectleidersoverleg</span>
+                      Project
                     </button>
                     <button
                       onClick={() => setMeetingType(MeetingType.PLANNING)}
@@ -568,8 +553,7 @@ export const NewMeetingPage: React.FC = () => {
                       }`}
                     >
                       <Layout size={16} />
-                      <span className="sm:hidden">Planning</span>
-                      <span className="hidden sm:inline">Planningsvergadering</span>
+                      Planning
                     </button>
                   </div>
                 </div>

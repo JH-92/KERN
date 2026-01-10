@@ -12,9 +12,12 @@ export default {
       },
       colors: {
         emerald: {
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857'
+          50: 'var(--color-primary-50)',
+          100: 'var(--color-primary-100)',
+          200: 'var(--color-primary-200)',
+          500: 'var(--color-primary-500)',
+          600: 'var(--color-primary-600)',
+          700: 'var(--color-primary-700)'
         }
       }
     },
