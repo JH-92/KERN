@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Calendar, Users, Save, Plus, PlusCircle, Trash2, 
-  CheckCircle, Info, ClipboardList, Clock, User, Briefcase, Layout,
+  Users, Save, Plus, PlusCircle, Trash2, 
+  CheckCircle, ClipboardList, Clock, Briefcase, Layout,
   GripVertical, List, CheckSquare, Square, X, ChevronDown, RotateCcw,
-  PenTool, ListTodo, AlertCircle, Edit2, AlertTriangle, Gavel, Play, Pause, Hourglass, Zap, ShieldAlert,
-  ChevronUp
+  PenTool, Edit2, Gavel, Play, Pause, Hourglass
 } from 'lucide-react';
 import { db, MeetingDraft } from '../db';
 import { MeetingType, ActionStatus, Employee, Action, Decision, Note, Meeting, Topic, VotingState } from '../types';
