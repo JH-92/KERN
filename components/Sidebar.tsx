@@ -32,6 +32,70 @@ const playBlip = () => {
     }
 };
 
+// --- DIRECTOR COMPASS WIDGET ---
+const DirectorCompass: React.FC = () => {
+    const [rotation, setRotation] = useState(0);
+    const [knots, setKnots] = useState(14);
+    const frameRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        const animate = () => {
+            const now = Date.now();
+            // Synced Angle Logic: Time-based rotation to ensure all tabs show same direction
+            // Base wind direction from North-West (315 deg) with slow oscillation
+            const baseDir = 315;
+            const sway = Math.sin(now / 3000) * 20; // +/- 20 degrees sway
+            const jitter = Math.sin(now / 200) * 1.5; // Micro jitter
+            
+            setRotation(baseDir + sway + jitter);
+            
+            // Wind speed oscillation
+            const kts = 14 + Math.sin(now / 1500) * 3;
+            setKnots(kts);
+
+            frameRef.current = requestAnimationFrame(animate);
+        };
+        
+        frameRef.current = requestAnimationFrame(animate);
+        return () => {
+            if (frameRef.current) cancelAnimationFrame(frameRef.current);
+        };
+    }, []);
+
+    return (
+        <div className="mb-4 flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4 shadow-sm group hover:border-emerald-200 transition-colors">
+            <div className="flex flex-col">
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Wind Dir</span>
+                <div className="bg-slate-100 text-slate-600 px-2 py-1 rounded-md text-[10px] font-mono font-bold tracking-widest shadow-inner inline-block text-center w-16">
+                   {knots.toFixed(0)} KT
+               </div>
+            </div>
+            
+            <div className="relative w-12 h-12 bg-slate-50 rounded-full border-2 border-slate-100 shadow-inner flex items-center justify-center overflow-hidden">
+                 {/* Cardinals */}
+                 <div className="absolute inset-0 flex flex-col justify-between items-center py-0.5 text-[6px] font-black text-slate-300 pointer-events-none">
+                    <span>N</span>
+                    <span>S</span>
+                 </div>
+                 <div className="absolute inset-0 flex flex-row justify-between items-center px-0.5 text-[6px] font-black text-slate-300 pointer-events-none">
+                    <span>W</span>
+                    <span>E</span>
+                 </div>
+
+                 {/* Needle */}
+                 <div 
+                    className="w-full h-full absolute inset-0 will-change-transform"
+                    style={{ transform: `rotate(${rotation}deg)` }}
+                 >
+                     <div className="absolute top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-b-[16px] border-b-emerald-500 filter drop-shadow-sm"></div>
+                     <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[16px] border-t-slate-300 opacity-80"></div>
+                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-white rounded-full border border-slate-200 z-10 shadow-sm"></div>
+                 </div>
+            </div>
+        </div>
+    );
+};
+
 // --- DIRECTOR FLIGHT DECK WIDGET (SLOW-TIDE EDITION) ---
 const DirectorFlightDeck: React.FC = () => {
     // Visual State
@@ -324,9 +388,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse })
         <div className="p-4 transition-all duration-300 space-y-4 relative z-10">
           <div className={`transition-all duration-300 w-full ${isCollapsed ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100 h-auto'}`}>
              
-             {/* WIDGET AREA: Director Flight Deck */}
+             {/* WIDGET AREA: Director Flight Deck & Compass */}
              {isDirectorMode && (
-                 <DirectorFlightDeck />
+                 <>
+                    <DirectorCompass />
+                    <DirectorFlightDeck />
+                 </>
              )}
              
              {votingState.isActive && (
