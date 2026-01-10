@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { Employee } from '../types';
-import { UserPlus, Trash2, Edit3, Search, Users, UploadCloud, X, CheckCircle, Database, AlertTriangle, ToggleLeft, ToggleRight, Bomb, Share2, Copy, Link as LinkIcon, ShieldAlert, FileSpreadsheet } from 'lucide-react';
+import { UserPlus, Trash2, Edit3, Search, Users, UploadCloud, X, CheckCircle, Database, AlertTriangle, ToggleLeft, ToggleRight, Bomb, Share2, Copy, Link as LinkIcon, ShieldAlert, FileSpreadsheet, Download } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 
 const SettingsPage: React.FC = () => {
@@ -230,7 +230,7 @@ const SettingsPage: React.FC = () => {
                             onChange={(e) => setWorkspaceInput(e.target.value)}
                             onBlur={handleWorkspaceUpdate}
                             onKeyDown={(e) => e.key === 'Enter' && handleWorkspaceUpdate()}
-                            className="flex-1 text-base font-mono font-bold text-slate-800 bg-white px-3 py-2 rounded-md border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                            className="flex-1 text-base font-mono font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-md border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
                          />
                          <button 
                             onClick={handleCopyTeamsLink} 
@@ -342,10 +342,11 @@ const SettingsPage: React.FC = () => {
         {/* SECTION 3: DIVIDER */}
         <hr className="border-slate-200" />
 
-        {/* SECTION 4: DEVELOPER TOOLS & EXPORT */}
+        {/* SECTION 4: REDESIGNED SYSTEM MANAGEMENT */}
         <section className="bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 p-8 relative overflow-hidden">
-             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                 <div>
+             <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
+                 {/* Left: Info */}
+                 <div className="flex-1">
                      <div className="flex items-center gap-3 mb-2">
                          <div className="bg-slate-200 text-slate-600 p-1.5 rounded-lg">
                              <Database size={18} />
@@ -353,51 +354,55 @@ const SettingsPage: React.FC = () => {
                          <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">Systeembeheer</h3>
                      </div>
                      <p className="text-xs text-slate-500 max-w-lg leading-relaxed">
-                         Beheer geavanceerde instellingen, exporteer data en voer systeemacties uit. 
-                         <span className="block mt-1 font-bold text-slate-600 flex items-center gap-1">
-                             <ShieldAlert size={12} className="text-amber-500" />
-                             Waarschuwing: Het wissen van de workspace is onomkeerbaar.
-                         </span>
+                         Exporteer data voor analyse of beheer de systeemstatus.
+                         <br/>
+                         <span className="italic mt-1 inline-block">Schakel de 'Dev Tools' in voor geavanceerde opties.</span>
                      </p>
+                     
+                     <div className="mt-4 flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Dev Tools:</span>
+                        <button 
+                            onClick={() => setDevMode(!devMode)} 
+                            className={`transition-colors ${devMode ? 'text-emerald-500' : 'text-slate-300 hover:text-slate-400'}`}
+                        >
+                            {devMode ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
+                        </button>
+                     </div>
                  </div>
 
-                 <div className="flex flex-wrap items-center gap-4">
-                      {/* ALWAYS VISIBLE EXPORT BUTTON */}
-                      <button
-                        onClick={handleExportData}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:shadow-emerald-200 transition-all flex items-center gap-2"
-                      >
-                         <FileSpreadsheet size={16} />
-                         Data Dump (Excel)
-                      </button>
-
-                      <div className="w-px h-10 bg-slate-300 mx-2 hidden md:block"></div>
-
-                      {devMode ? (
-                          <div className="flex gap-3 animate-in fade-in slide-in-from-right-4">
+                 {/* Right: Actions */}
+                 <div className="flex flex-col gap-4 w-full md:w-auto min-w-[200px]">
+                      {/* Row 1: Tools */}
+                      <div className="flex flex-col gap-2">
+                          <button
+                            onClick={handleExportData}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white w-full px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:shadow-emerald-200 transition-all flex items-center justify-center gap-2"
+                          >
+                             <FileSpreadsheet size={16} />
+                             Data Dump (Excel)
+                          </button>
+                          
+                          {devMode && (
                               <button 
                                 onClick={() => setShowInjectConfirm(true)}
-                                className="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                                className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 w-full px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-sm transition-all flex items-center justify-center gap-2"
                               >
-                                  <Database size={14} /> Demo Data
+                                  <Database size={16} /> Demo Data
                               </button>
+                          )}
+                      </div>
+
+                      {/* Row 2: Danger Zone */}
+                      {devMode && (
+                          <div className="pt-2 border-t border-slate-200/50 text-center">
                               <button 
                                 onClick={() => setShowResetConfirm(true)}
-                                className="bg-white hover:bg-red-50 text-red-600 border border-red-200 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                                className="text-red-400 hover:text-red-600 text-[10px] font-black uppercase tracking-widest hover:underline decoration-red-200 underline-offset-4 transition-all flex items-center justify-center gap-1"
                               >
-                                  <Bomb size={14} /> Reset
+                                  <AlertTriangle size={12} /> Workspace Wissen
                               </button>
                           </div>
-                      ) : (
-                          <p className="text-xs text-slate-400 italic pr-2">Dev Tools →</p>
                       )}
-                      
-                      <button 
-                        onClick={() => setDevMode(!devMode)} 
-                        className={`transition-colors ${devMode ? 'text-emerald-500' : 'text-slate-300 hover:text-slate-400'}`}
-                      >
-                          {devMode ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
-                      </button>
                  </div>
              </div>
         </section>

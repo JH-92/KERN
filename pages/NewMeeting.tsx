@@ -23,15 +23,6 @@ const getWeekNumber = (dateString: string) => {
   return weekNo;
 };
 
-// Helper to get local date string YYYY-MM-DD reliably without time offsets
-const getLocalDateString = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 // Extended Type for UI state
 type DraftAction = Partial<Action> & { isLocked?: boolean };
 type DraftDecision = Partial<Decision> & { isLocked?: boolean };
@@ -44,8 +35,11 @@ const NewMeetingPage: React.FC = () => {
   // Load Draft or Default
   const savedDraft = useMemo(() => db.getDraft(), []);
 
-  // Form state initialized with Draft or Local Date
-  const [date, setDate] = useState(savedDraft?.date || getLocalDateString());
+  // Form state initialized. 
+  // CRITICAL: We force Today's date using 'en-CA' (YYYY-MM-DD) to ensure the picker aligns with the user's current day.
+  // We do NOT use savedDraft.date here to prevent stale dates from confusing the user in a new session.
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
+  
   const [meetingType, setMeetingType] = useState<MeetingType>((savedDraft?.meetingType as MeetingType) || MeetingType.PROJECT);
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>(savedDraft?.selectedAttendees || []);
   
@@ -105,8 +99,8 @@ const NewMeetingPage: React.FC = () => {
   const handleFullReset = () => {
     db.clearDraft();
     
-    // Reset alle lokale scherm-velden naar leeg:
-    setDate(getLocalDateString());
+    // Reset all fields to defaults
+    setDate(new Date().toLocaleDateString('en-CA'));
     setMeetingType(MeetingType.PROJECT);
     setSelectedAttendees([]);
     setNotes({});
@@ -118,11 +112,6 @@ const NewMeetingPage: React.FC = () => {
     setShowResetConfirm(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     showToast("Systeem volledig hersteld.");
-  };
-
-  const handleTogglePastAction = (actionId: string) => {
-    const newStatus = db.toggleActionStatus(actionId);
-    setPastActions(prev => prev.map(a => a.id === actionId ? { ...a, status: newStatus } : a));
   };
 
   const handleSave = () => {
