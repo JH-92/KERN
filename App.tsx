@@ -19,6 +19,7 @@ const ScrollToTop = () => {
 };
 
 // --- VISUAL FX COMPONENTS ---
+// NOTE: All visual FX use pointer-events-none via the wrapper in return
 const OceanLayer: React.FC = () => {
     const [isGoldenHour, setIsGoldenHour] = useState(false);
     useEffect(() => {
@@ -30,13 +31,8 @@ const OceanLayer: React.FC = () => {
     }, []);
 
     return (
-        <div className={`fixed inset-0 z-0 pointer-events-none overflow-hidden transition-colors duration-[2000ms] ${isGoldenHour ? 'bg-gradient-to-b from-orange-50/50 via-orange-100/30 to-amber-200/20' : 'bg-gradient-to-b from-cyan-50/50 via-cyan-100/30 to-blue-200/20'}`}>
+        <div className={`absolute inset-0 overflow-hidden transition-colors duration-[2000ms] ${isGoldenHour ? 'bg-gradient-to-b from-orange-50/50 via-orange-100/30 to-amber-200/20' : 'bg-gradient-to-b from-cyan-50/50 via-cyan-100/30 to-blue-200/20'}`}>
             <div className={`absolute bottom-0 left-0 w-[200%] h-64 flex animate-wave opacity-60 transition-colors duration-[2000ms] ${isGoldenHour ? 'text-amber-300' : 'text-cyan-200'}`}>
-                <svg viewBox="0 0 1200 120" preserveAspectRatio="none" className="w-1/2 h-full fill-current">
-                    <path d="M0,0V46.29c47.79,22.2,103.59,32.17,158,28,70.36-5.37,136.33-33.31,206.8-37.5C438.64,32.43,512.34,53.67,583,72.05c69.27,18,138.3,24.88,209.4,13.08,36.15-6,69.85-17.84,104.45-29.34C989.49,25,1113-14.29,1200,52.47V0Z" opacity=".25" transform="scale(1, -1) translate(0, -120)"></path>
-                    <path d="M0,0V15.81C13,36.92,27.64,56.86,47.69,72.05,99.41,111.27,165,111,224.58,91.58c31.15-10.15,60.09-26.07,89.67-39.8,40.92-19,84.73-46,130.83-49.67,36.26-2.85,70.9,9.42,98.6,31.56,31.77,25.39,62.32,62,103.63,73,40.44,10.79,81.35-6.69,119.13-24.28s75.16-39,116.92-43.05c59.73-5.85,113.28,22.88,168.9,38.84,30.2,8.66,59,6.17,87.09-7.5,22.43-10.89,48-26.93,60.65-49.24V0Z" opacity=".5" transform="scale(1, -1) translate(0, -120)"></path>
-                    <path d="M0,0V5.63C149.93,59,314.09,71.32,475.83,42.57c43-7.64,84.23-20.12,127.61-26.46,59-8.63,112.48,12.24,165.56,35.4C827.93,77.22,886,95.24,951.2,90c86.53-7,172.46-45.71,248.8-84.81V0Z" transform="scale(1, -1) translate(0, -120)"></path>
-                </svg>
                 <svg viewBox="0 0 1200 120" preserveAspectRatio="none" className="w-1/2 h-full fill-current">
                     <path d="M0,0V46.29c47.79,22.2,103.59,32.17,158,28,70.36-5.37,136.33-33.31,206.8-37.5C438.64,32.43,512.34,53.67,583,72.05c69.27,18,138.3,24.88,209.4,13.08,36.15-6,69.85-17.84,104.45-29.34C989.49,25,1113-14.29,1200,52.47V0Z" opacity=".25" transform="scale(1, -1) translate(0, -120)"></path>
                     <path d="M0,0V15.81C13,36.92,27.64,56.86,47.69,72.05,99.41,111.27,165,111,224.58,91.58c31.15-10.15,60.09-26.07,89.67-39.8,40.92-19,84.73-46,130.83-49.67,36.26-2.85,70.9,9.42,98.6,31.56,31.77,25.39,62.32,62,103.63,73,40.44,10.79,81.35-6.69,119.13-24.28s75.16-39,116.92-43.05c59.73-5.85,113.28,22.88,168.9,38.84,30.2,8.66,59,6.17,87.09-7.5,22.43-10.89,48-26.93,60.65-49.24V0Z" opacity=".5" transform="scale(1, -1) translate(0, -120)"></path>
@@ -126,7 +122,7 @@ const DropletTrail: React.FC = () => {
         };
     }, []);
 
-    return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[9998]" />;
+    return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />;
 };
 
 const App: React.FC = () => {
@@ -164,28 +160,53 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <ScrollToTop />
-      {isDirectorMode && <DirectorFX />}
-      {isDirectorMode ? <OceanLayer /> : <AnimatedBackground />}
-      {isDirectorMode && <DropletTrail />}
       
-      <div className={`flex min-h-screen relative z-20 overflow-x-hidden ${isDirectorMode ? 'bg-transparent' : 'bg-slate-50/60'}`}>
-        <Sidebar 
-          isCollapsed={isSidebarCollapsed} 
-          toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
-        />
+      {/* --- LAYER 0: BACKGROUND & FX (Non-Interactive) --- */}
+      {/* Strict z-index 0 and pointer-events-none ensure these NEVER block clicks */}
+      <div className="fixed inset-0 z-0 pointer-events-none select-none fx-layer">
+          {isDirectorMode && <DirectorFX />}
+          {isDirectorMode ? <OceanLayer /> : <AnimatedBackground />}
+          {isDirectorMode && <DropletTrail />}
+      </div>
+      
+      {/* --- LAYER 10: APPLICATION LAYOUT (Interactive) --- */}
+      <div className={`flex min-h-screen relative z-10 overflow-x-hidden ${isDirectorMode ? 'bg-transparent' : 'bg-slate-50/60'}`}>
+        
+        {/* SIDEBAR: Z-Index 50 (Higher than content) */}
+        <div className="z-50 relative">
+            <Sidebar 
+                isCollapsed={isSidebarCollapsed} 
+                toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
+            />
+        </div>
+
+        {/* MAIN CONTENT: Z-Index 10 */}
         <main 
-          className={`flex-1 transition-all duration-300 ease-in-out ${
+          className={`flex-1 transition-all duration-300 ease-in-out relative z-10 ${
             isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'
           }`}
         >
-          <div className="w-full max-w-7xl mx-auto px-8 py-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <Routes>
-              <Route path="/" element={<NewMeetingPage />} />
-              <Route path="/actielijst" element={<ActionListPage />} />
-              <Route path="/archief" element={<ArchivePage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/instellingen" element={<SettingsPage />} />
-            </Routes>
+          {/* Content Container with Flex Column for Footer Pushing */}
+          <div className="w-full max-w-7xl mx-auto px-8 py-10 animate-in fade-in slide-in-from-bottom-4 duration-700 relative interactive-zone min-h-[calc(100vh-5rem)] flex flex-col">
+            <div className="flex-1">
+              <Routes>
+                <Route path="/" element={<NewMeetingPage />} />
+                <Route path="/actielijst" element={<ActionListPage />} />
+                <Route path="/archief" element={<ArchivePage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/instellingen" element={<SettingsPage />} />
+              </Routes>
+            </div>
+            
+            {/* GLOBAL BRAND FOOTER */}
+            <footer className="mt-20 pb-4 text-center pointer-events-none select-none opacity-50">
+                <div className="inline-flex flex-col items-center gap-4">
+                    <div className="w-16 h-px bg-slate-300/60 rounded-full"></div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] leading-relaxed">
+                        KERN: Koers <span className="opacity-40 mx-1">•</span> Efficiëntie <span className="opacity-40 mx-1">•</span> Resultaat <span className="opacity-40 mx-1">•</span> Nazorg
+                    </p>
+                </div>
+            </footer>
           </div>
         </main>
       </div>

@@ -18,44 +18,58 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent rubber-banding on Mac/iOS which can interfere with clicks */
+  overscroll-behavior-y: none;
 }
 
-/* --- INTERACTIVITY FIXES --- */
+/* --- CRITICAL INTERACTIVITY FIXES --- */
+
+/* 1. Eliminate 300ms tap delay on touch devices */
 button, 
-[role="button"],
-input[type="submit"],
-.clickable {
-    cursor: pointer !important;
+a, 
+input, 
+[role="button"] {
+    touch-action: manipulation;
+    cursor: pointer;
 }
 
-/* Global Click Feedback */
+/* 2. Enforce pointer events on interactive elements */
+.interactive-zone {
+    pointer-events: auto !important;
+    position: relative;
+    z-index: 20;
+}
+
+/* 3. Global Active State Feedback (Instant Visual Response) */
 button:active, 
 a:active, 
 [role="button"]:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
     transition: transform 0.05s ease-out;
 }
 
 /* --- DIRECTOR MODE OVERRIDES --- */
-/* 2. HYDROFOIL SCROLL */
 html.director-mode {
     scroll-behavior: smooth;
 }
 
-/* 5. BUOY BUTTONS */
+/* Stable Hover (Replaces the "Float" animation that caused ghost clicks) */
 html.director-mode button:hover,
 html.director-mode .tilt-card:hover {
-    animation: float-buoy 3s ease-in-out infinite;
+    transform: translateY(-2px);
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-@keyframes float-buoy {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
+/* --- FX LAYERS --- */
+/* Ensure FX never block clicks */
+.fx-layer {
+    pointer-events: none !important;
+    user-select: none !important;
 }
 
-/* 7. GUSTY NOTIFICATIONS */
+/* GUSTY NOTIFICATIONS */
 html.director-mode .toast-enter {
-    animation: slide-gust 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; /* Elastic overshoot */
+    animation: slide-gust 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; 
 }
 
 @keyframes slide-gust {
@@ -64,7 +78,7 @@ html.director-mode .toast-enter {
     100% { transform: translateX(0) skewX(0); opacity: 1; }
 }
 
-/* 6. PUMPING LOADER */
+/* ANIMATIONS */
 @keyframes pump-wing {
     0% { transform: translateY(0) scaleY(1); }
     50% { transform: translateY(4px) scaleY(0.9); }
@@ -75,7 +89,6 @@ html.director-mode .toast-enter {
     animation: pump-wing 0.8s ease-in-out infinite;
 }
 
-/* 10. WAVING FLAG */
 @keyframes wave-flag {
     0% { transform: rotate(0deg); }
     25% { transform: rotate(-10deg); }
@@ -88,13 +101,36 @@ html.director-mode .toast-enter {
     animation: wave-flag 2s ease-in-out infinite;
 }
 
-/* 1. RIPPLE CLICKS */
+/* PROFESSIONAL PULSE (System Status Breathing) */
+@keyframes professional-pulse {
+    0% {
+        transform: scale(0.95);
+        opacity: 0.7;
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.2); /* emerald-400 equivalent */
+    }
+    50% {
+        transform: scale(1.15);
+        opacity: 1;
+        box-shadow: 0 0 8px 2px rgba(52, 211, 153, 0.3);
+    }
+    100% {
+        transform: scale(0.95);
+        opacity: 0.7;
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.2);
+    }
+}
+
+.animate-breathing {
+    animation: professional-pulse 3.5s ease-in-out infinite;
+}
+
+/* Ripple Effect */
 .ripple {
     position: fixed;
     border-radius: 50%;
     transform: scale(0);
     animation: ripple-effect 0.6s linear;
-    border: 2px solid rgba(6, 182, 212, 0.5); /* Cyan */
+    border: 2px solid rgba(6, 182, 212, 0.5);
     background: rgba(6, 182, 212, 0.1);
     pointer-events: none !important;
     z-index: 9999;
@@ -107,12 +143,12 @@ html.director-mode .toast-enter {
     }
 }
 
-/* 8. SPLASH PARTICLES */
+/* Splash Particles */
 .splash-particle {
     position: absolute;
     width: 4px;
     height: 4px;
-    background: #06b6d4; /* Cyan */
+    background: #06b6d4;
     border-radius: 50%;
     pointer-events: none !important;
     z-index: 50;
@@ -124,34 +160,7 @@ html.director-mode .toast-enter {
     100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
 }
 
-/* --- WAKE PARTICLES (New Fluid Cursor Effect) --- */
-.wake-particle {
-  pointer-events: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  border-radius: 50%;
-  /* Radial gradient simulating expanding foam/splash */
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(165, 243, 252, 0.4) 40%, rgba(165, 243, 252, 0) 70%);
-  animation: wake-fade 0.6s ease-out forwards;
-  will-change: transform, opacity;
-  z-index: 9998;
-}
-
-@keyframes wake-fade {
-  0% { 
-    transform: translate(-50%, -50%) scale(0.2); 
-    opacity: 0.8; 
-  }
-  100% { 
-    transform: translate(-50%, -50%) scale(2.5); 
-    opacity: 0; 
-  }
-}
-
-/* --- WIPEOUT FX --- */
-
-/* Shake Animation */
+/* Wipeout Shake */
 @keyframes violent-shake {
   0% { transform: translate(0, 0) rotate(0deg); }
   10% { transform: translate(-15px, -15px) rotate(-2deg); }
@@ -166,68 +175,6 @@ html.director-mode .toast-enter {
 
 .wipeout-shake {
   animation: violent-shake 0.6s cubic-bezier(.36,.07,.19,.97) both;
-}
-
-/* Underwater Overlay */
-.underwater-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9997;
-  pointer-events: none;
-  backdrop-filter: blur(8px) contrast(90%) brightness(110%) hue-rotate(180deg);
-  background: linear-gradient(to bottom, rgba(6, 182, 212, 0.1), rgba(8, 145, 178, 0.2));
-  animation: fade-underwater 3s ease-out forwards;
-}
-
-@keyframes fade-underwater {
-    0% { opacity: 0; }
-    10% { opacity: 1; }
-    80% { opacity: 1; }
-    100% { opacity: 0; }
-}
-
-/* Flash Splash */
-@keyframes flash-splash {
-    0% { opacity: 0.9; background-color: rgba(255, 255, 255, 0.9); }
-    20% { opacity: 0.6; background-color: rgba(165, 243, 252, 0.5); } /* Cyan-200 */
-    100% { opacity: 0; }
-}
-
-.splash-flash {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    pointer-events: none;
-    animation: flash-splash 1.2s ease-out forwards;
-}
-
-/* Water Droplets */
-.water-droplet {
-    position: absolute;
-    background: rgba(255, 255, 255, 0.5);
-    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-    box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.1), inset 1px 1px 3px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0,0,0,0.1);
-    animation: drip-down var(--duration) ease-in forwards;
-    opacity: 0.9;
-    z-index: 9998;
-    pointer-events: none;
-}
-
-@keyframes drip-down {
-    0% { transform: translateY(0) scale(1); opacity: 0.9; }
-    50% { opacity: 0.8; }
-    100% { transform: translateY(100vh) scale(0.9); opacity: 0; }
-}
-
-/* Ocean Wave Animation - Infinite Loop Left to Right */
-@keyframes wave {
-  0% { transform: translateX(-50%); }
-  100% { transform: translateX(0%); }
-}
-
-.animate-wave {
-  animation: wave 25s linear infinite;
-  will-change: transform;
 }
 
 /* Utilities */

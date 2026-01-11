@@ -345,7 +345,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse })
           <div className="flex items-center gap-4 mb-2 justify-center">
             <KernLogo size={isCollapsed ? 32 : 42} className="text-emerald-600 transition-all duration-300" />
             <h1 
-              className={`text-3xl font-black text-slate-900 tracking-tighter leading-none transition-all duration-300 origin-left ${
+              className={`text-3xl font-black text-slate-900 tracking-tighter leading-none transition-all duration-300 origin-left select-none drop-shadow-sm ${
                 isCollapsed ? 'opacity-0 w-0 scale-0 hidden' : 'opacity-100 w-auto scale-100'
               }`}
             >
@@ -456,8 +456,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse })
             <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
                <div className="relative shrink-0">
                   <ShieldCheck size={24} className="text-emerald-500 relative z-10" />
-                  <div className={`absolute top-0 right-0 w-2 h-2 bg-emerald-400 rounded-full z-20 transition-all duration-300 ${isPulsing ? 'animate-ping' : ''}`}></div>
-                  <div className={`absolute top-0 right-0 w-2 h-2 bg-emerald-400 rounded-full z-20`}></div>
+                  {/* Calmer breathing status indicator */}
+                  <div className={`absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full z-20 border-2 border-white ${isPulsing ? 'animate-ping' : 'animate-breathing'}`}></div>
                </div>
                <div className={`overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>
                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest whitespace-nowrap">Systeemstatus</p>
