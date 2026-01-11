@@ -20,12 +20,23 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* --- DIRECTOR MODE OVERRIDES --- */
-html.director-mode, 
-html.director-mode * {
-    cursor: none !important;
+/* --- INTERACTIVITY FIXES --- */
+button, 
+[role="button"],
+input[type="submit"],
+.clickable {
+    cursor: pointer !important;
 }
 
+/* Global Click Feedback */
+button:active, 
+a:active, 
+[role="button"]:active {
+    transform: scale(0.98);
+    transition: transform 0.05s ease-out;
+}
+
+/* --- DIRECTOR MODE OVERRIDES --- */
 /* 2. HYDROFOIL SCROLL */
 html.director-mode {
     scroll-behavior: smooth;
@@ -113,6 +124,31 @@ html.director-mode .toast-enter {
     100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
 }
 
+/* --- WAKE PARTICLES (New Fluid Cursor Effect) --- */
+.wake-particle {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  /* Radial gradient simulating expanding foam/splash */
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(165, 243, 252, 0.4) 40%, rgba(165, 243, 252, 0) 70%);
+  animation: wake-fade 0.6s ease-out forwards;
+  will-change: transform, opacity;
+  z-index: 9998;
+}
+
+@keyframes wake-fade {
+  0% { 
+    transform: translate(-50%, -50%) scale(0.2); 
+    opacity: 0.8; 
+  }
+  100% { 
+    transform: translate(-50%, -50%) scale(2.5); 
+    opacity: 0; 
+  }
+}
+
 /* --- WIPEOUT FX --- */
 
 /* Shake Animation */
@@ -183,14 +219,15 @@ html.director-mode .toast-enter {
     100% { transform: translateY(100vh) scale(0.9); opacity: 0; }
 }
 
-/* Ocean Wave Animation */
+/* Ocean Wave Animation - Infinite Loop Left to Right */
 @keyframes wave {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0%); }
 }
 
 .animate-wave {
-  animation: wave 10s linear infinite;
+  animation: wave 25s linear infinite;
+  will-change: transform;
 }
 
 /* Utilities */

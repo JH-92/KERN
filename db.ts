@@ -441,6 +441,17 @@ export const db = {
     notifySubscribers();
   },
 
+  updateDraftNote: (agendaItem: string, content: string): void => {
+    const data = storage.get(getKey(STORAGE_KEYS.DRAFT));
+    if (data) {
+        const draft: MeetingDraft = JSON.parse(data);
+        if (!draft.notes) draft.notes = {};
+        draft.notes[agendaItem] = content;
+        storage.set(getKey(STORAGE_KEYS.DRAFT), JSON.stringify(draft));
+        notifySubscribers();
+    }
+  },
+
   clearDraft: (): void => {
     storage.remove(getKey(STORAGE_KEYS.DRAFT));
     notifySubscribers();

@@ -5,7 +5,7 @@ import {
   CheckCircle, Info, ClipboardList, Clock, User, Briefcase, Layout,
   GripVertical, List, CheckSquare, Square, X, ChevronDown, RotateCcw,
   PenTool, ListTodo, AlertCircle, Edit2, AlertTriangle, Gavel, Play, Pause, Hourglass, Zap, ShieldAlert,
-  ChevronUp
+  ChevronUp, Coffee, Battery, Bell, Wind, Compass
 } from 'lucide-react';
 import { db, MeetingDraft } from '../db';
 import { MeetingType, ActionStatus, Employee, Action, Decision, Note, Meeting, Topic, VotingState } from '../types';
@@ -27,7 +27,37 @@ const getWeekNumber = (dateString: string) => {
   return weekNo;
 };
 
-const NewMeetingPage: React.FC = () => {
+// --- REFINED MINIMALIST TIMER ---
+const TelemetryTimer: React.FC<{ time: number; isRunning: boolean }> = ({ time, isRunning }) => {
+    const format = (s: number) => {
+        const h = Math.floor(s / 3600).toString().padStart(2, '0');
+        const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+        const s_num = s % 60;
+        const s_str = s_num.toString().padStart(2, '0');
+        return { h, m, s: s_str };
+    };
+
+    const { h, m, s } = format(time);
+    
+    return (
+        <div className={`
+            inline-flex items-center px-6 py-2 rounded-2xl transition-all duration-500
+            ${isRunning 
+                ? 'bg-white/60 border border-white/60 backdrop-blur-md shadow-sm' 
+                : 'bg-transparent border border-transparent'}
+        `}>
+            <div className="text-4xl font-light font-mono tracking-widest tabular-nums flex items-baseline gap-1 text-slate-800">
+                <span>{h}</span>
+                <span className="text-2xl opacity-30 -translate-y-1">:</span>
+                <span>{m}</span>
+                <span className="text-2xl opacity-30 -translate-y-1">:</span>
+                <span>{s}</span>
+            </div>
+        </div>
+    );
+};
+
+export const NewMeetingPage: React.FC = () => {
   const navigate = useNavigate();
   const [isDirectorMode, setIsDirectorMode] = useState(document.documentElement.classList.contains('director-mode'));
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -56,9 +86,16 @@ const NewMeetingPage: React.FC = () => {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  // --- GIZMO: STOPWATCH STATE (PERSISTENT) ---
+  // --- GIZMO: STOPWATCH STATE & MILESTONES ---
   const [stopwatchTime, setStopwatchTime] = useState(db.getTimerElapsed());
   const [isStopwatchRunning, setIsStopwatchRunning] = useState(db.getTimerState().isRunning);
+  const [timerMessage, setTimerMessage] = useState<string | null>(null);
+  
+  // Milestone Tracking
+  const milestonesTriggered = useRef<Set<string>>(new Set());
+  const [breakModal, setBreakModal] = useState<{isOpen: boolean, title: string, message: string, type: 'coffee' | 'urgent' | null}>({
+      isOpen: false, title: '', message: '', type: null
+  });
 
   // --- GIZMO: DATA FLOW ANIMATION STATE ---
   const [isSaving, setIsSaving] = useState(false);
@@ -70,6 +107,10 @@ const NewMeetingPage: React.FC = () => {
   const [showVoteBubble, setShowVoteBubble] = useState(false);
   const [activeUserCount, setActiveUserCount] = useState(1);
   const sessionId = useMemo(() => db.getSessionId(), []);
+
+  // Focus tracking for real-time collaboration
+  const focusedNoteRef = useRef<string | null>(null);
+  const noteSaveTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const currentAgenda = useMemo(() => {
     return meetingType === MeetingType.PROJECT ? PROJECT_AGENDA : PLANNING_AGENDA;
@@ -84,54 +125,156 @@ const NewMeetingPage: React.FC = () => {
     setActiveUserCount(db.getActiveUserCount());
   }, []);
 
+  // --- REAL-TIME SYNC LOGIC ---
+  
+  // 1. Structural Save
   useEffect(() => {
     const draft: MeetingDraft = {
       date,
       meetingType,
       selectedAttendees,
-      notes,
+      notes, 
       topics,
       topicInputs,
       tempActions,
       tempDecisions
     };
     db.saveDraft(draft);
-  }, [date, meetingType, selectedAttendees, notes, topics, topicInputs, tempActions, tempDecisions]);
+  }, [date, meetingType, selectedAttendees, topics, topicInputs, tempActions, tempDecisions]);
 
-  // Persistent Stopwatch Effect
-  useEffect(() => {
-    const updateTimer = () => {
-        setStopwatchTime(db.getTimerElapsed());
-        setIsStopwatchRunning(db.getTimerState().isRunning);
-    };
-
-    updateTimer(); // Initial update
-
-    const interval = setInterval(updateTimer, 1000); // Check every second
-    const handleSync = () => updateTimer();
-
-    window.addEventListener('kern-data-update', handleSync);
-    return () => {
-        clearInterval(interval);
-        window.removeEventListener('kern-data-update', handleSync);
-    };
-  }, []);
-
-  // Voting & Presence Sync Listener
+  // 2. Incoming Sync Listener
   useEffect(() => {
     const handleSync = () => {
+        // Sync Timer
+        setStopwatchTime(db.getTimerElapsed());
+        setIsStopwatchRunning(db.getTimerState().isRunning);
+
+        // Sync Voting & Presence
         setVotingState(db.getVotingState());
         setActiveUserCount(db.getActiveUserCount());
         setIsDirectorMode(document.documentElement.classList.contains('director-mode'));
+
+        // Sync Notes (Granular Merge)
+        const remoteDraft = db.getDraft();
+        if (remoteDraft && remoteDraft.notes) {
+            setNotes(prev => {
+                const newNotes = { ...remoteDraft.notes };
+                if (focusedNoteRef.current && prev[focusedNoteRef.current] !== undefined) {
+                    newNotes[focusedNoteRef.current] = prev[focusedNoteRef.current];
+                }
+                return newNotes;
+            });
+            if (remoteDraft.selectedAttendees) setSelectedAttendees(remoteDraft.selectedAttendees);
+            if (remoteDraft.meetingType) setMeetingType(remoteDraft.meetingType as MeetingType);
+            if (remoteDraft.date) setDate(remoteDraft.date);
+            if (remoteDraft.topics) setTopics(remoteDraft.topics);
+            if (remoteDraft.tempActions) setTempActions(remoteDraft.tempActions);
+            if (remoteDraft.tempDecisions) setTempDecisions(remoteDraft.tempDecisions);
+        }
     };
+
     window.addEventListener('kern-data-update', handleSync);
+    handleSync();
+
     return () => window.removeEventListener('kern-data-update', handleSync);
   }, []);
+
+  // 3. Local Timer Tick & Milestone Logic
+  useEffect(() => {
+    let interval: any;
+    interval = setInterval(() => {
+        const state = db.getTimerState();
+        if (state.isRunning) {
+            const now = Date.now();
+            const elapsed = state.accumulated + Math.floor((now - state.startTime) / 1000);
+            setStopwatchTime(elapsed);
+            
+            // --- MILESTONE LOGIC ---
+            checkMilestones(elapsed);
+        }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkMilestones = (seconds: number) => {
+      const minutes = Math.floor(seconds / 60);
+      const isAlreadyTriggered = (key: string) => milestonesTriggered.current.has(key);
+      const trigger = (key: string) => milestonesTriggered.current.add(key);
+
+      // 1. Focus Check (25 min / 1500s) - Subtle
+      if (minutes === 25 && !isAlreadyTriggered('focus-25')) {
+          trigger('focus-25');
+          setTimerMessage("Halverwege het eerste blok. Nog scherp?");
+          setTimeout(() => setTimerMessage(null), 8000);
+      }
+
+      // 2. Coffee Break (55 min / 3300s) - Modal
+      if (minutes === 55 && !isAlreadyTriggered('coffee-55')) {
+          trigger('coffee-55');
+          setBreakModal({
+              isOpen: true,
+              type: 'coffee',
+              title: 'Koffiepauze?',
+              message: 'Het uur is bijna om. Tijd voor verse koffie of even de benen strekken?'
+          });
+      }
+
+      // 3. Energy Boost (90 min / 5400s) - Subtle
+      if (minutes === 90 && !isAlreadyTriggered('energy-90')) {
+          trigger('energy-90');
+          setTimerMessage("Al anderhalf uur bezig! Misschien even de benen strekken?");
+          setTimeout(() => setTimerMessage(null), 8000);
+      }
+
+      // 4. Final Call (115 min / 6900s) - Urgent Modal
+      if (minutes === 115 && !isAlreadyTriggered('final-115')) {
+          trigger('final-115');
+          setBreakModal({
+              isOpen: true,
+              type: 'urgent',
+              title: 'Twee-uurs grens nadert',
+              message: 'Tijd om besluiten vast te leggen en af te ronden. De concentratieboog staat onder druk.'
+          });
+      }
+
+      // 5. Smart Repetition (> 2 hours, every 60 mins at X:55 mark)
+      // e.g., 175 min (2h 55m), 235 min (3h 55m)
+      if (seconds > 7200) {
+          // Check if we are at the 55th minute of an hour relative to start
+          // 55 minutes = 3300 seconds. Modulo 3600 (1 hour).
+          const positionInHour = seconds % 3600;
+          if (positionInHour === 3300) {
+              const repeatKey = `repeat-${Math.floor(seconds / 3600)}`;
+              if (!isAlreadyTriggered(repeatKey)) {
+                  trigger(repeatKey);
+                  setBreakModal({
+                      isOpen: true,
+                      type: 'coffee',
+                      title: 'Verlenging?',
+                      message: 'We zijn weer een uur verder. Tijd voor een korte pauze?'
+                  });
+              }
+          }
+      }
+  };
+
+  const handlePauseFromModal = () => {
+      db.pauseTimer();
+      setIsStopwatchRunning(false);
+      setBreakModal(prev => ({ ...prev, isOpen: false }));
+      showToast("Vergadering gepauzeerd");
+  };
+
+  const handleResumeFromModal = () => {
+      db.startTimer();
+      setIsStopwatchRunning(true);
+      setBreakModal(prev => ({ ...prev, isOpen: false }));
+      showToast("Vergadering hervat");
+  };
 
   // --- UX FEATURE 4: UNSAVED CHANGES GUARD ---
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-        // Simple heuristic: if stopwatch running OR notes exist OR actions exist OR decisions exist
         const hasContent = 
             isStopwatchRunning || 
             Object.keys(notes).length > 0 || 
@@ -140,14 +283,22 @@ const NewMeetingPage: React.FC = () => {
         
         if (hasContent) {
             e.preventDefault();
-            e.returnValue = ''; // Required for Chrome
-            return ''; // Required for Legacy
+            e.returnValue = ''; 
+            return '';
         }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isStopwatchRunning, notes, tempActions, tempDecisions]);
+
+  const handleNoteChange = (item: string, value: string) => {
+      setNotes(prev => ({ ...prev, [item]: value }));
+      if (noteSaveTimeoutRef.current[item]) clearTimeout(noteSaveTimeoutRef.current[item]);
+      noteSaveTimeoutRef.current[item] = setTimeout(() => {
+          db.updateDraftNote(item, value);
+      }, 1000);
+  };
 
   const formatStopwatch = (seconds: number) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -162,6 +313,7 @@ const NewMeetingPage: React.FC = () => {
       } else {
           db.startTimer();
       }
+      setIsStopwatchRunning(!isStopwatchRunning);
   };
 
   const weekNumber = useMemo(() => getWeekNumber(date), [date]);
@@ -182,12 +334,9 @@ const NewMeetingPage: React.FC = () => {
         db.startVote(); 
     }
     
-    // Cast regular vote
     db.castVote(sessionId);
     
-    // Director Power Vote (2x Weight)
     if (isDirectorMode) {
-        // We cast a second "ghost" vote using a modified session ID to weight the vote count
         db.castVote(`${sessionId}_director_power`);
         showToast("⚖️ Director Power: Dubbele stem uitgebracht!");
     }
@@ -196,7 +345,6 @@ const NewMeetingPage: React.FC = () => {
   };
 
   const activeVotersCount = votingState.votes.length;
-  // Use real-time presence for total voters, fallback to 1
   const totalVoters = Math.max(activeUserCount, 1);
   const isMajority = activeVotersCount > (totalVoters / 2);
 
@@ -209,7 +357,11 @@ const NewMeetingPage: React.FC = () => {
     db.stopVote();
     db.resetTimer();
     
-    // Reset all fields to defaults
+    // Reset milestones
+    milestonesTriggered.current.clear();
+    setTimerMessage(null);
+    setBreakModal(prev => ({ ...prev, isOpen: false }));
+    
     setDate(new Date().toLocaleDateString('en-CA'));
     setMeetingType(MeetingType.PROJECT);
     setSelectedAttendees([]);
@@ -237,7 +389,6 @@ const NewMeetingPage: React.FC = () => {
           const particle = document.createElement('div');
           particle.classList.add('splash-particle');
           
-          // Random spread
           const angle = Math.random() * Math.PI * 2;
           const dist = 20 + Math.random() * 40;
           const tx = Math.cos(angle) * dist;
@@ -246,7 +397,6 @@ const NewMeetingPage: React.FC = () => {
           particle.style.setProperty('--tx', `${tx}px`);
           particle.style.setProperty('--ty', `${ty}px`);
           
-          // Position relative to click
           particle.style.left = `${e.clientX}px`;
           particle.style.top = `${e.clientY}px`;
           
@@ -258,15 +408,12 @@ const NewMeetingPage: React.FC = () => {
   const triggerSaveAnimation = (callback: () => void) => {
     if (saveBtnRef.current) {
         const btnRect = saveBtnRef.current.getBoundingClientRect();
-        // Target: Archive Icon in Sidebar (id="nav-archive")
         const targetEl = document.getElementById('nav-archive');
-        
         let tx = 0;
         let ty = 0;
 
         if (targetEl) {
             const targetRect = targetEl.getBoundingClientRect();
-            // Calculate vector from Button Center to Icon Center
             const startX = btnRect.left + btnRect.width / 2;
             const startY = btnRect.top + btnRect.height / 2;
             const endX = targetRect.left + targetRect.width / 2;
@@ -274,14 +421,12 @@ const NewMeetingPage: React.FC = () => {
             tx = endX - startX;
             ty = endY - startY;
         } else {
-            // Fallback if Sidebar collapsed or unavailable: move left and fade
             tx = -window.innerWidth / 2;
             ty = 0;
         }
 
-        // Set CSS variables for animation
         setParticleStyle({
-            top: btnRect.top + btnRect.height / 2 - 12, // Center vertically (12 is half size)
+            top: btnRect.top + btnRect.height / 2 - 12, 
             left: btnRect.left + btnRect.width / 2 - 12,
             '--tx': `${tx}px`,
             '--ty': `${ty}px`
@@ -289,7 +434,6 @@ const NewMeetingPage: React.FC = () => {
 
         setIsSaving(true);
 
-        // Wait for animation to finish (1s)
         setTimeout(() => {
             setIsSaving(false);
             callback();
@@ -305,7 +449,6 @@ const NewMeetingPage: React.FC = () => {
       return;
     }
 
-    // Trigger Animation then Process Save
     triggerSaveAnimation(() => {
         const meetingId = Date.now().toString();
         const formattedNotes: Note[] = [];
@@ -373,13 +516,14 @@ const NewMeetingPage: React.FC = () => {
           notes: formattedNotes,
           actions: formattedActions,
           decisions: formattedDecisions,
-          duration: formatStopwatch(stopwatchTime) // Save Duration
+          duration: formatStopwatch(stopwatchTime) 
         };
 
         db.saveMeeting(newMeeting);
         db.clearDraft();
-        db.stopVote(); // Reset voting on save
-        db.resetTimer(); // Reset timer on save
+        db.stopVote(); 
+        db.resetTimer();
+        milestonesTriggered.current.clear();
         navigate('/archief', { state: { saved: true } });
     });
   };
@@ -388,7 +532,7 @@ const NewMeetingPage: React.FC = () => {
   const toggleAttendee = (name: string) => setSelectedAttendees(prev => prev.includes(name) ? prev.filter(a => a !== name) : [...prev, name]);
   const handleAddTopic = (item: string) => { const text = topicInputs[item]?.trim(); if (!text) return; setTopics(prev => ({ ...prev, [item]: [...(prev[item] || []), { id: Date.now().toString(), text, isCompleted: false }] })); setTopicInputs(prev => ({ ...prev, [item]: '' })); };
   const toggleTopic = (item: string, topicId: string, e?: React.MouseEvent) => { 
-      if (e) triggerSplash(e); // Splash Trigger
+      if (e) triggerSplash(e); 
       setTopics(prev => ({ ...prev, [item]: prev[item]?.map(t => t.id === topicId ? { ...t, isCompleted: !t.isCompleted } : t) || [] })); 
   };
   const removeTopic = (item: string, topicId: string) => setTopics(prev => ({ ...prev, [item]: prev[item]?.filter(t => t.id !== topicId) || [] }));
@@ -407,10 +551,29 @@ const NewMeetingPage: React.FC = () => {
 
   return (
     <div className="pb-40 animate-in fade-in slide-in-from-bottom-6 duration-700 relative">
+      <style>{`
+        @keyframes float-text {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-2px); }
+        }
+        .animate-float-text {
+            animation: float-text 2s ease-in-out infinite;
+        }
+        @keyframes vibrate {
+            0% { transform: translate(0); }
+            20% { transform: translate(-1px, 1px); }
+            40% { transform: translate(-1px, -1px); }
+            60% { transform: translate(1px, 1px); }
+            80% { transform: translate(1px, -1px); }
+            100% { transform: translate(0); }
+        }
+        .animate-vibrate {
+            animation: vibrate 0.2s linear infinite;
+        }
+      `}</style>
       {isSaving && <div className="data-flow-particle" style={particleStyle}></div>}
 
-      {/* GIZMO: FLOATING WRAP-IT-UP FAB / DIRECTOR VETO */}
-      {/* Set Z-Index to 9999 to ensure it floats above everything */}
+      {/* GIZMO: FLOATING WRAP-IT-UP FAB */}
       <div className="fixed bottom-8 right-8 z-[9999] group flex flex-col items-end gap-3 no-blur">
          {/* Vote Bubble Overlay */}
          <div className={`bg-slate-900 text-white p-4 rounded-2xl shadow-xl mb-2 transition-all origin-bottom-right duration-300 w-64 ${
@@ -454,7 +617,6 @@ const NewMeetingPage: React.FC = () => {
          >
             <Hourglass size={28} className="text-white" />
             
-            {/* Notification Badge */}
             {activeVotersCount > 0 && (
                 <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-black text-white">
                     {activeVotersCount}
@@ -464,7 +626,6 @@ const NewMeetingPage: React.FC = () => {
       </div>
 
       <PageHeader title="Nieuwe vergadering" subtitle="Configureer het overleg en start de verslaglegging.">
-         {/* ... Page Header Content ... */}
          <div className="flex flex-col sm:flex-row items-center gap-4 relative z-20">
            {hasDraftData && (
              <div className="flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-3 rounded-xl border border-amber-100 shadow-sm animate-pulse">
@@ -483,13 +644,12 @@ const NewMeetingPage: React.FC = () => {
       </PageHeader>
 
       <div className="space-y-12">
-         {/* Config Block */}
         <section className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 relative group">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             <div className="space-y-8">
               {/* GIZMO: LIVE STOPWATCH CONTROL */}
               <div 
-                className={`bg-slate-50 p-6 rounded-3xl border border-slate-200 flex items-center justify-between transition-all duration-300 ease-out ${
+                className={`bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col justify-between transition-all duration-300 ease-out ${
                     isDirectorMode && hoverTimer 
                     ? '-translate-y-1 shadow-lg shadow-cyan-100/50 border-cyan-200' 
                     : ''
@@ -497,29 +657,48 @@ const NewMeetingPage: React.FC = () => {
                 onMouseEnter={() => isDirectorMode && setHoverTimer(true)}
                 onMouseLeave={() => setHoverTimer(false)}
               >
-                 <div>
-                    <span className={`text-[10px] font-black tracking-widest block mb-1 transition-colors duration-300 ${
-                        isDirectorMode && hoverTimer ? 'text-cyan-500' : 'text-slate-400 uppercase'
-                    }`}>
-                        {isDirectorMode && hoverTimer ? 'Session hangtime' : 'Vergaderduur'}
-                    </span>
-                    <div className={`text-3xl font-black tabular-nums tracking-tighter transition-colors duration-300 ${
-                        isDirectorMode && hoverTimer ? 'text-cyan-500' : 'text-slate-900'
-                    }`}>
-                        {formatStopwatch(stopwatchTime)}
-                    </div>
+                 <div className="flex items-center justify-between w-full mb-2">
+                     <div className="flex-1 mr-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2 transition-colors duration-300">
+                            Vergaderduur
+                        </span>
+                        
+                        {isDirectorMode ? (
+                            <div className="flex items-center justify-start w-full">
+                                <TelemetryTimer time={stopwatchTime} isRunning={isStopwatchRunning} />
+                            </div>
+                        ) : (
+                            <div className={`text-3xl font-black tabular-nums tracking-tighter transition-colors duration-300 ${
+                                (!isStopwatchRunning && stopwatchTime > 0)
+                                    ? 'text-amber-500' 
+                                    : 'text-slate-900'
+                            }`}>
+                                {formatStopwatch(stopwatchTime)}
+                            </div>
+                        )}
+                     </div>
+                     <button 
+                        onClick={handleToggleTimer}
+                        className={`px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all transform active:scale-95 shrink-0 ${
+                            isStopwatchRunning 
+                            ? 'bg-white border-2 border-red-100 text-red-500 hover:bg-red-50 shadow-red-100' 
+                            : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200'
+                        }`}
+                     >
+                        {isStopwatchRunning ? <Pause size={18} /> : <Play size={18} />}
+                        {isStopwatchRunning ? 'Pauzeren' : 'Start timer'}
+                     </button>
                  </div>
-                 <button 
-                    onClick={handleToggleTimer}
-                    className={`px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all transform active:scale-95 ${
-                        isStopwatchRunning 
-                        ? 'bg-white border-2 border-red-100 text-red-500 hover:bg-red-50 shadow-red-100' 
-                        : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200'
-                    }`}
-                 >
-                    {isStopwatchRunning ? <Pause size={18} /> : <Play size={18} />}
-                    {isStopwatchRunning ? 'Pauzeren' : 'Start timer'}
-                 </button>
+                 
+                 {/* Subtle Milestones Message Area */}
+                 <div className={`mt-2 h-6 overflow-hidden transition-all duration-500 ${timerMessage ? 'opacity-100' : 'opacity-0'}`}>
+                     {timerMessage && (
+                         <div className="flex items-center gap-2 text-xs font-bold text-slate-500 animate-in slide-in-from-top-2">
+                             <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></div>
+                             {timerMessage}
+                         </div>
+                     )}
+                 </div>
               </div>
 
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -635,6 +814,7 @@ const NewMeetingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* ... (Agenda sections omitted for brevity, logic remains identical) ... */}
         {/* Agenda Loop */}
         <div className="space-y-16">
           {currentAgenda.map((item, index) => (
@@ -646,7 +826,7 @@ const NewMeetingPage: React.FC = () => {
                     Onderdeel {currentAgenda.indexOf(item) + 1}
                   </div>
                 </div>
-                {/* ... (Rest of Agenda Item content identical to previous) ... */}
+                
                 <div className="p-8 md:p-12 space-y-12">
                    {/* Topics & Notes */}
                   <div className="space-y-10">
@@ -698,11 +878,13 @@ const NewMeetingPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Notulen</label>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Notulen (Live Sync)</label>
                       <textarea 
                         rows={6}
                         value={notes[item] || ''}
-                        onChange={(e) => setNotes(prev => ({ ...prev, [item]: e.target.value }))}
+                        onChange={(e) => handleNoteChange(item, e.target.value)}
+                        onFocus={() => focusedNoteRef.current = item}
+                        onBlur={() => focusedNoteRef.current = null}
                         placeholder={`Leg hier de bespreekpunten vast...`}
                         className="w-full px-8 py-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] focus:bg-white focus:border-emerald-500 focus:ring-0 outline-none transition-all resize-none font-medium text-lg text-slate-700 leading-relaxed"
                       />
@@ -715,7 +897,7 @@ const NewMeetingPage: React.FC = () => {
                      <div className="space-y-8">
                        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                          <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                           <Plus size={16} /> Actie toevoegen
+                           <Zap size={16} /> Actie toevoegen
                          </h4>
                          <button onClick={() => addActionToCart(item)} className="bg-blue-600 text-white p-2 rounded-full hover:scale-110 transition-transform">
                            <Plus size={20} />
@@ -724,7 +906,6 @@ const NewMeetingPage: React.FC = () => {
                        <div className="space-y-4">
                         {tempActions[item]?.map((action, idx) => (
                           <div key={`act-input-${idx}`} className={`bg-slate-50 border border-slate-200 rounded-[2rem] shadow-sm animate-in zoom-in-95 transition-all ${action.isLocked ? 'p-0 overflow-hidden' : 'p-6'}`}>
-                              {/* Action Item Input Logic (same as before) */}
                               {!action.isLocked ? (
                                <div className="space-y-4">
                                   <div className="space-y-2">
@@ -770,8 +951,8 @@ const NewMeetingPage: React.FC = () => {
                      {/* Decisions Column */}
                      <div className="space-y-8">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                        <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center">
-                          <PlusCircle className="w-6 h-6 text-emerald-600 mr-3" /> Besluit vastleggen
+                        <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2">
+                          <Gavel size={16} /> Besluit vastleggen
                         </h4>
                         <button onClick={() => addDecisionToCart(item)} className="bg-emerald-600 text-white p-2 rounded-full hover:scale-110 transition-transform"><Plus size={20} /></button>
                       </div>
@@ -840,8 +1021,6 @@ const NewMeetingPage: React.FC = () => {
             </div>
           ))}
         </div>
-        {/* Missing closing div added here */}
-      </div>
 
         {/* Floating Save Button */}
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-10 duration-1000">
