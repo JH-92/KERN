@@ -31,8 +31,20 @@ const SettingsPage: React.FC = () => {
   // Forms
   const [currentEmployee, setCurrentEmployee] = useState<Partial<Employee>>({ name: '', role: '', email: '' });
   const [batchInput, setBatchInput] = useState('');
-  const [legacyAction, setLegacyAction] = useState({ title: '', description: '', owner: '', deadline: new Date().toISOString().split('T')[0] });
-  const [legacyDecision, setLegacyDecision] = useState({ title: '', description: '', owner: '', date: new Date().toISOString().split('T')[0] });
+  const [legacyAction, setLegacyAction] = useState({ 
+    title: '', 
+    description: '', 
+    owner: '', 
+    deadline: new Date().toISOString().split('T')[0],
+    type: MeetingType.PROJECT
+  });
+  const [legacyDecision, setLegacyDecision] = useState({ 
+    title: '', 
+    description: '', 
+    owner: '', 
+    date: new Date().toISOString().split('T')[0],
+    type: MeetingType.PROJECT
+  });
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const loadData = () => {
@@ -191,22 +203,21 @@ const SettingsPage: React.FC = () => {
     // Force Sentence Case for Title
     const title = legacyAction.title.charAt(0).toUpperCase() + legacyAction.title.slice(1);
 
-    const id = Date.now().toString(); 
     db.saveLegacyAction({ 
-      id: `leg-act-${id}`, 
+      id: `leg-act-${Date.now()}`, 
       readable_id: readableId, 
       meetingId: null, 
       title: title, 
-      description: legacyAction.description || '', // Removed 'Excel' default label
+      description: legacyAction.description,
       owners: legacyAction.owner ? [legacyAction.owner] : [], 
       deadline: legacyAction.deadline, 
       status: ActionStatus.OPEN, 
       topic: 'Import', 
-      originType: MeetingType.PROJECT, 
+      originType: legacyAction.type, 
       isLegacy: true 
     }); 
     
-    setLegacyAction({ title: '', description: '', owner: '', deadline: new Date().toISOString().split('T')[0] }); 
+    setLegacyAction({ title: '', description: '', owner: '', deadline: new Date().toISOString().split('T')[0], type: MeetingType.PROJECT }); 
     setShowActionImport(false); 
     showToast("Historisch actiepunt opgeslagen."); 
   };
@@ -223,20 +234,19 @@ const SettingsPage: React.FC = () => {
     // Force Sentence Case for Title
     const title = legacyDecision.title.charAt(0).toUpperCase() + legacyDecision.title.slice(1);
 
-    const id = Date.now().toString(); 
     db.saveLegacyDecision({ 
-      id: `leg-dec-${id}`, 
+      id: `leg-dec-${Date.now()}`, 
       readable_id: readableId, 
       meetingId: null, 
       title: title, 
-      description: legacyDecision.description || '', // Removed 'Excel' default label
+      description: legacyDecision.description, 
       owners: legacyDecision.owner ? [legacyDecision.owner] : [], 
       date: legacyDecision.date, 
       topic: 'Import', 
       isLegacy: true 
     }); 
     
-    setLegacyDecision({ title: '', description: '', owner: '', date: new Date().toISOString().split('T')[0] }); 
+    setLegacyDecision({ title: '', description: '', owner: '', date: new Date().toISOString().split('T')[0], type: MeetingType.PROJECT }); 
     setShowDecisionImport(false); 
     showToast("Historisch besluit opgeslagen."); 
   };
@@ -345,7 +355,6 @@ const SettingsPage: React.FC = () => {
              </div>
         </section>
 
-        {/* ... Rest of components remain mostly same but ensure buttons have active feedback ... */}
         <section className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -511,7 +520,6 @@ const SettingsPage: React.FC = () => {
              </div>
         </section>
 
-        {/* ... Modals (unchanged mostly) ... */}
         {showAddModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={closeModal}></div>
@@ -539,14 +547,143 @@ const SettingsPage: React.FC = () => {
             </div>
         )}
 
-        {/* ... Other modals (Batch, ActionImport, Reset) follow similar pattern ... */}
+        {showActionImport && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowActionImport(false)}></div>
+                <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg relative z-10 animate-in zoom-in-95 shadow-2xl">
+                    <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3"><ClipboardList className="text-amber-500" /> Snel actiepunt toevoegen</h3>
+                    <form onSubmit={handleSaveLegacyAction} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Overlegtype</label>
+                                <select 
+                                    value={legacyAction.type} 
+                                    onChange={e => setLegacyAction({...legacyAction, type: e.target.value as MeetingType})} 
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold appearance-none outline-none focus:ring-2 focus:ring-amber-100"
+                                >
+                                    <option value={MeetingType.PROJECT}>Projectleidersoverleg</option>
+                                    <option value={MeetingType.PLANNING}>Planningsvergadering</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Deadline</label>
+                                <div className="h-[46px]"><CustomDatePicker value={legacyAction.deadline} onChange={d => setLegacyAction({...legacyAction, deadline: d})} /></div>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Eigenaar</label>
+                            <select 
+                                value={legacyAction.owner} 
+                                onChange={e => setLegacyAction({...legacyAction, owner: e.target.value})} 
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold appearance-none outline-none focus:ring-2 focus:ring-amber-100"
+                            >
+                                <option value="">Selecteer eigenaar</option>
+                                {employees.map(emp => (
+                                    <option key={emp.id} value={emp.name}>{emp.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Titel (Verplicht)</label>
+                            <input 
+                                type="text" 
+                                value={legacyAction.title} 
+                                onChange={e => setLegacyAction({...legacyAction, title: e.target.value})} 
+                                placeholder="Korte titel van de actie..." 
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-amber-100" 
+                                required 
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Omschrijving (Optioneel)</label>
+                            <textarea 
+                                value={legacyAction.description} 
+                                onChange={e => setLegacyAction({...legacyAction, description: e.target.value})} 
+                                className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-amber-100 resize-none" 
+                                placeholder="Extra toelichting of details..." 
+                            />
+                        </div>
+                        <div className="pt-4 flex gap-3">
+                            <button type="button" onClick={() => setShowActionImport(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 cursor-pointer">Annuleren</button>
+                            <button type="submit" className="flex-1 px-4 py-3 bg-[#10b981] text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-600 shadow-lg cursor-pointer">Opslaan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
+
+        {showDecisionImport && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowDecisionImport(false)}></div>
+                <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg relative z-10 animate-in zoom-in-95 shadow-2xl">
+                    <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3"><Gavel className="text-emerald-500" /> Snel besluit toevoegen</h3>
+                    <form onSubmit={handleSaveLegacyDecision} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Overlegtype</label>
+                                <select 
+                                    value={legacyDecision.type} 
+                                    onChange={e => setLegacyDecision({...legacyDecision, type: e.target.value as MeetingType})} 
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold appearance-none outline-none focus:ring-2 focus:ring-emerald-100"
+                                >
+                                    <option value={MeetingType.PROJECT}>Projectleidersoverleg</option>
+                                    <option value={MeetingType.PLANNING}>Planningsvergadering</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Datum</label>
+                                <div className="h-[46px]"><CustomDatePicker value={legacyDecision.date} onChange={d => setLegacyDecision({...legacyDecision, date: d})} /></div>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Verantwoordelijke</label>
+                            <select 
+                                value={legacyDecision.owner} 
+                                onChange={e => setLegacyDecision({...legacyDecision, owner: e.target.value})} 
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold appearance-none outline-none focus:ring-2 focus:ring-emerald-100"
+                            >
+                                <option value="">Selecteer verantwoordelijke</option>
+                                {employees.map(emp => (
+                                    <option key={emp.id} value={emp.name}>{emp.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Besluit (Titel)</label>
+                            <input 
+                                type="text" 
+                                value={legacyDecision.title} 
+                                onChange={e => setLegacyDecision({...legacyDecision, title: e.target.value})} 
+                                placeholder="Wat is er besloten?" 
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-emerald-100" 
+                                required 
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Omschrijving (Optioneel)</label>
+                            <textarea 
+                                value={legacyDecision.description} 
+                                onChange={e => setLegacyDecision({...legacyDecision, description: e.target.value})} 
+                                className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-100 resize-none" 
+                                placeholder="Details en onderbouwing..." 
+                            />
+                        </div>
+                        <div className="pt-4 flex gap-3">
+                            <button type="button" onClick={() => setShowDecisionImport(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 cursor-pointer">Annuleren</button>
+                            <button type="submit" className="flex-1 px-4 py-3 bg-[#10b981] text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 shadow-lg cursor-pointer">Opslaan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
+
         {showBatchModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowBatchModal(false)}></div>
                 <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg relative z-10 animate-in zoom-in-95 shadow-2xl">
                     <h3 className="text-2xl font-black text-slate-900 mb-4">Bulk import</h3>
-                    <p className="text-slate-500 mb-4 text-sm font-medium">Plak een lijst met namen, gescheiden door komma's.</p>
-                    <textarea autoFocus value={batchInput} onChange={e => setBatchInput(e.target.value)} className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 font-medium text-slate-700 focus:outline-none focus:border-blue-300 resize-none" placeholder="Jan Jansen, Piet Pietersen, ..." />
+                    <p className="text-slate-500 mb-4 text-sm font-medium">Plak namen gescheiden door komma's.</p>
+                    <textarea autoFocus value={batchInput} onChange={e => setBatchInput(e.target.value)} className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 font-medium text-slate-700 outline-none focus:border-blue-300 resize-none" placeholder="Jan Jansen, Piet Pietersen, ..." />
                     <div className="flex justify-end gap-3">
                         <button onClick={() => setShowBatchModal(false)} className="px-5 py-3 text-slate-500 font-bold text-xs uppercase tracking-widest hover:text-slate-800 cursor-pointer">Annuleren</button>
                         <button onClick={handleBatchImport} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-700 shadow-lg cursor-pointer">Importeren</button>
@@ -562,10 +699,10 @@ const SettingsPage: React.FC = () => {
                     <div className="flex flex-col items-center text-center">
                         <div className="bg-red-100 p-4 rounded-full text-red-500 mb-4"><Bomb size={32} /></div>
                         <h3 className="text-2xl font-black text-slate-900 mb-2">Workspace wissen?</h3>
-                        <p className="text-slate-500 text-sm mb-6">Weet u zeker dat u alle data wilt verwijderen? Dit kan niet ongedaan worden gemaakt.</p>
+                        <p className="text-slate-500 text-sm mb-6">Alle data wordt permanent verwijderd.</p>
                         <div className="flex gap-3 w-full">
                             <button onClick={() => setShowResetConfirm(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 cursor-pointer">Annuleren</button>
-                            <button onClick={handleSystemReset} className="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-red-600 shadow-lg shadow-red-100 cursor-pointer">Ja, alles wissen</button>
+                            <button onClick={handleSystemReset} className="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-red-600 shadow-lg cursor-pointer">Ja, wissen</button>
                         </div>
                     </div>
                 </div>
@@ -579,44 +716,23 @@ const SettingsPage: React.FC = () => {
                     <div className="flex flex-col items-center text-center">
                         <div className="bg-emerald-100 p-4 rounded-full text-emerald-600 mb-4"><Database size={32} /></div>
                         <h3 className="text-2xl font-black text-slate-900 mb-2">Demo data laden?</h3>
-                        <p className="text-slate-500 text-sm mb-6">Dit overschrijft de huidige data met een volledige voorbeeld dataset. Wilt u doorgaan?</p>
+                        <p className="text-slate-500 text-sm mb-6">Dit overschrijft de huidige data met een volledige set.</p>
                         <div className="flex gap-3 w-full">
                             <button onClick={() => setShowInjectConfirm(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 cursor-pointer">Annuleren</button>
-                            <button onClick={handleInjectMasterData} className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-100 cursor-pointer">Start injectie</button>
+                            <button onClick={handleInjectMasterData} className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 shadow-lg cursor-pointer">Start</button>
                         </div>
                     </div>
                 </div>
             </div>
         )}
-        
-        {/* Missing imports modals (Action/Decision) kept brief here but logic is same */}
-        {showActionImport && (
-             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowActionImport(false)}></div>
-                <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg relative z-10 animate-in zoom-in-95 shadow-2xl">
-                    {/* ... content same as original but with cursor-pointer on buttons ... */}
-                    <div className="pt-4 flex gap-3">
-                         <button type="button" onClick={() => setShowActionImport(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 cursor-pointer">Annuleren</button>
-                         <button onClick={(e) => handleSaveLegacyAction(e)} className="flex-1 px-4 py-3 bg-amber-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-amber-600 shadow-lg shadow-amber-100 cursor-pointer">Opslaan</button>
-                    </div>
-                </div>
-             </div>
-        )}
-        
-        {showDecisionImport && (
-             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowDecisionImport(false)}></div>
-                <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg relative z-10 animate-in zoom-in-95 shadow-2xl">
-                    {/* ... content same as original but with cursor-pointer on buttons ... */}
-                     <div className="pt-4 flex gap-3">
-                         <button type="button" onClick={() => setShowDecisionImport(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 cursor-pointer">Annuleren</button>
-                         <button onClick={(e) => handleSaveLegacyDecision(e)} className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-100 cursor-pointer">Opslaan</button>
-                    </div>
-                </div>
-             </div>
-        )}
 
       </div>
+      {toastMsg && (
+        <div className="fixed bottom-6 left-6 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 z-[300] flex items-center gap-3">
+          <div className="bg-emerald-500 p-1 rounded-full"><CheckCircle size={14} className="text-white" /></div>
+          <span className="font-bold text-sm">{toastMsg}</span>
+        </div>
+      )}
     </div>
   );
 };
