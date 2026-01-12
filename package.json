@@ -1,4 +1,3 @@
-
 {
   "name": "kern-app",
   "version": "1.0.0",
@@ -9,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.7",
     "lucide-react": "^0.344.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
